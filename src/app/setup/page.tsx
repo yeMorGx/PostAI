@@ -1,10 +1,11 @@
 import { AppLink as Link, Panel } from "@/components/ui";
+import { BrandLogo } from "@/components/brand-logo";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export default function SetupPage() {
   const configured = isSupabaseConfigured();
   return <div className="auth-layout">
-    <aside className="auth-aside"><Link href="/" className="wordmark">PostAI</Link><p className="mt-2 text-[#bcc6d8]">Conteúdo da Piersec</p>
+    <aside className="auth-aside"><BrandLogo/><p className="mt-2 text-[#bcc6d8]">Conteúdo da Piersec</p>
       <div className="auth-message my-auto py-16"><div className="mb-6 h-1 w-12 bg-[#33c3ed]"/><h1 className="max-w-sm text-[46px]">Uma semana de conteúdo, organizada.</h1><p className="mt-6 max-w-sm text-[#bcc6d8]">O espaço de trabalho da equipe para preparar as peças de LinkedIn e Instagram.</p></div>
       <p className="text-sm text-[#bcc6d8]">Uso interno da Piersec</p></aside>
     <main className="auth-main"><div className="w-full max-w-xl"><p className="eyeline mb-3">Configuração inicial</p><h1>Conecte o espaço Piersec</h1><p className="muted mt-4">A interface está pronta para conectar ao banco. Os conteúdos e acessos serão carregados após a configuração.</p>
