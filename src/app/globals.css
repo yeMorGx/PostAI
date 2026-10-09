@@ -18,12 +18,10 @@ a { color: inherit; }
 .brand-logo { position: relative; display: block; width: min(276px, 100%); }
 .brand-logo--compact { width: min(196px, 100%); }
 .brand-logo--inline { width: clamp(128px, 30vw, 170px); flex-shrink: 0; }
-.brand-logo--inline .brand-logo__control { bottom: -12px; color: var(--muted); }
 .brand-logo__link { position: relative; display: block; aspect-ratio: 736 / 308; text-decoration: none; }
 .brand-logo__link img { width: 100%; height: 100%; object-fit: contain; }
 .brand-logo__animation { position: absolute; inset: 0; }
 .brand-logo[data-playing="true"] .brand-logo__still { visibility: hidden; }
-.brand-logo__control { position: absolute; right: 0; bottom: -16px; color: #bcc6d8; }
 .side-link { display: flex; align-items: center; min-height: 46px; padding: 10px 14px; border-radius: 8px; text-decoration: none; color: #bcc6d8; }
 .side-link:hover { color: white; background: #1d2740; }
 .side-link.active { color: white; background: #263347; }
@@ -50,6 +48,6 @@ a { color: inherit; }
 @media (max-width: 560px) { .page-heading { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
-  .brand-logo__animation, .brand-logo__control { display: none; }
+  .brand-logo__animation { display: none; }
   .brand-logo[data-playing="true"] .brand-logo__still { visibility: visible; }
 }
