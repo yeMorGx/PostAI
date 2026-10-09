@@ -15,7 +15,7 @@ Atualizado em 9 de outubro de 2026.
 
 O usuário confirmou que o remetente pertence ao Microsoft 365 da Piersec. SMTP habilitado com suas credenciais; host corrigido para `smtp.office365.com`, porta 587, e configuração persistida no painel. Modelos de convite e magic link aplicados com verificação de `TokenHash` no servidor. O painel confirmou a gravação do modelo de entrada.
 
-O envio retornou HTTP 504. Os logs Auth registraram `context deadline exceeded`, código `request_timeout`, em `/invite`. Há também eventos tardios com status 200; eles não comprovam entrega: uma consulta posterior à API administrativa não encontrou a conta do destinatário. A ativação permanece pendente. A causa específica do timeout não foi identificada; é necessário conferir a configuração de SMTP autenticado da caixa no Microsoft 365 antes de outra tentativa. Não guardar a senha SMTP no repositório ou em mensagens.
+O envio retornou HTTP 504. Os logs Auth registraram `context deadline exceeded`, código `request_timeout`, em `/invite`. Há também eventos tardios com status 200; eles não comprovam entrega: uma consulta posterior à API administrativa não encontrou a conta do destinatário. A ativação permanece pendente. O usuário confirmou que SMTP autenticado está habilitado na caixa. A causa específica do timeout não foi identificada; o próximo diagnóstico é consultar os logs de entrada do remetente no Microsoft Entra, incluindo entradas não interativas, no período de 16:59–17:01 (America/Sao_Paulo), em 9 de outubro de 2026. Uma política de autenticação pode impedir SMTP com usuário/senha mesmo com SMTP autenticado habilitado, mas isso não foi confirmado neste tenant. Não guardar a senha SMTP no repositório ou em mensagens.
 
 Depois, enviar o convite com:
 
