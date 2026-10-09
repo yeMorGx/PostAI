@@ -18,5 +18,9 @@ if (workspaceError) throw new Error('O espaço Piersec não foi encontrado.');
 const { error: insertError } = await client.from('workspace_invitations').insert({ workspace_id: workspace.id, email, role: 'admin' });
 if (insertError && insertError.code !== '23505') throw new Error('Não foi possível registrar o convite de administração.');
 const { error: inviteError } = await client.auth.admin.inviteUserByEmail(email, { redirectTo: `${appUrl}/auth/confirm` });
-if (inviteError) console.log('Convite registrado, mas o envio falhou. Se a conta já existir, use o link de entrada. Caso contrário, confira o serviço de e-mail.');
+if (inviteError) {
+  console.error('Convite registrado, mas o envio não foi concluído. Confira SMTP e logs de autenticação.');
+  console.error(`Auth status: ${inviteError.status ?? 'indisponível'}; code: ${inviteError.code ?? 'indisponível'}`);
+  process.exitCode = 1;
+}
 else console.log('Convite de administração enviado. Entre pelo link para ativar seu acesso.');

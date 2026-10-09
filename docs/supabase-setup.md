@@ -9,11 +9,11 @@ Atualizado em 9 de outubro de 2026.
 - Migração `20261009183822_piersec_access_and_drafts.sql` aplicada pelo SQL Editor; RLS confirmado nas cinco tabelas.
 - Cadastro público desabilitado; contas anônimas desabilitadas; confirmação de e-mail habilitada.
 - Site URL: `http://localhost:3000`. Redirecionamentos permitidos: `/auth/confirm` e `/auth/callback`, nessa mesma origem.
-- Convite de administrador registrado para `gabriel.goes@piersec.com.br`. Ainda não enviado/ativado: aguarda SMTP e aplicação dos modelos de e-mail.
+- Convite de administrador registrado para `gabriel.goes@piersec.com.br`. O envio foi tentado após configurar SMTP, mas o serviço de autenticação retornou erro. A ativação permanece pendente.
 
 ## Pendência de e-mail
 
-O painel do projeto Free exige SMTP próprio para editar os modelos de convite e magic link. Configurar SMTP em Authentication → Emails → SMTP Settings e aplicar os modelos em `supabase/templates` antes de enviar o convite. Não guardar a senha SMTP no repositório ou em mensagens.
+SMTP habilitado com os dados preenchidos pelo usuário. Porta de `smtp-mail.outlook.com` corrigida de 465 para 587. Modelo de convite aplicado com verificação de `TokenHash` no servidor. O envio do convite falhou; é necessário conferir autenticação do provedor SMTP e seus logs. A edição do modelo magic link ficou pendente porque o Chrome bloqueou a automação enquanto a interface de outra extensão estava aberta. Não guardar a senha SMTP no repositório ou em mensagens.
 
 Depois, enviar o convite com:
 
