@@ -13,7 +13,9 @@ Atualizado em 9 de outubro de 2026.
 
 ## Pendência de e-mail
 
-SMTP habilitado com os dados preenchidos pelo usuário. Porta de `smtp-mail.outlook.com` corrigida de 465 para 587. Modelo de convite aplicado com verificação de `TokenHash` no servidor. O envio do convite falhou; é necessário conferir autenticação do provedor SMTP e seus logs. A edição do modelo magic link ficou pendente porque o Chrome bloqueou a automação enquanto a interface de outra extensão estava aberta. Não guardar a senha SMTP no repositório ou em mensagens.
+O usuário confirmou que o remetente pertence ao Microsoft 365 da Piersec. SMTP habilitado com suas credenciais; host corrigido para `smtp.office365.com`, porta 587, e configuração persistida no painel. Modelos de convite e magic link aplicados com verificação de `TokenHash` no servidor. O painel confirmou a gravação do modelo de entrada.
+
+O envio retornou HTTP 504. Os logs Auth registraram `context deadline exceeded`, código `request_timeout`, em `/invite`. Há também eventos tardios com status 200; eles não comprovam entrega: uma consulta posterior à API administrativa não encontrou a conta do destinatário. A ativação permanece pendente. A causa específica do timeout não foi identificada; é necessário conferir a configuração de SMTP autenticado da caixa no Microsoft 365 antes de outra tentativa. Não guardar a senha SMTP no repositório ou em mensagens.
 
 Depois, enviar o convite com:
 
