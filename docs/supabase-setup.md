@@ -9,7 +9,7 @@ Atualizado em 9 de outubro de 2026.
 - Migração `20261009183822_piersec_access_and_drafts.sql` aplicada pelo SQL Editor; RLS confirmado nas cinco tabelas.
 - Cadastro público desabilitado; contas anônimas desabilitadas; confirmação de e-mail habilitada.
 - Site URL: `http://localhost:3000`. Redirecionamentos permitidos: `/auth/confirm` e `/auth/callback`, nessa mesma origem.
-- Convite de administrador registrado para `gabriel.goes@piersec.com.br`. O envio foi tentado após configurar SMTP, mas o serviço de autenticação retornou erro. A ativação permanece pendente.
+- Convite de administrador registrado para `gabriel.goes@piersec.com.br`. Após falha do envio SMTP, a conta Auth foi criada com `auth.admin.generateLink` do tipo `invite`, a pedido do usuário, e o link de ativação foi fornecido diretamente na conversa. A associação de administrador será criada pela rota `/auth/confirm` após o destinatário usar o link. Nenhum token de ativação foi salvo no repositório. O envio automático por e-mail permanece pendente.
 
 ## Pendência de e-mail
 
