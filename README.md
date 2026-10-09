@@ -27,7 +27,7 @@ Abra http://localhost:3000. Preencha `.env.local` com a URL e a chave publicáve
 
 ### Preparar o Supabase
 
-O repositório não está vinculado a um projeto remoto. Projetos existentes de outros produtos não foram modificados.
+O PostAI foi conectado ao projeto criado pelo usuário. Consulte [o estado da configuração](docs/supabase-setup.md) antes de aplicar migrações neste ambiente; o SMTP permanece pendente. Os comandos abaixo descrevem a preparação de um banco novo.
 
 ```powershell
 pnpm exec supabase login
