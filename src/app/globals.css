@@ -4,6 +4,7 @@
 
  :root, [data-theme="light"] { --ink: var(--foreground); --line: var(--border); --accent: #2d4bff; --accent-foreground: #fff; }
 @theme inline { --font-sans: var(--font-body); --font-display: var(--font-heading); }
+.card { box-shadow: none; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--background); color: var(--ink); font-family: var(--font-body), system-ui, sans-serif; font-size: 17px; line-height: 1.5; }
 h1, h2, h3:not(.card__title) { font-family: var(--font-heading), sans-serif; font-weight: 700; letter-spacing: -.035em; line-height: 1.15; }
