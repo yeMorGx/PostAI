@@ -2,12 +2,9 @@
 .reference-shell .sidebar { padding: 20px 14px; gap: 22px; overflow-y: auto; }
 .section-nav { display: flex; flex-direction: column; gap: 4px; }
 .section-nav-label { padding: 0 12px 6px; color: #9aa4b8; font-size: 14px; font-weight: 600; }
-.reference-shell .side-link { width: 100%; gap: 12px; min-height: 44px; padding: 0 12px; font-size: 15px; font-weight: 600; border-radius: 10px; color: #c3cad8; }
+.reference-shell .side-link { width: 100%; gap: 12px; justify-content: flex-start; }
 .side-link svg { flex-shrink: 0; }
-.reference-shell .side-link.active { background: #232d42; color: #fff; box-shadow: inset 0 0 0 2px #7c91ff; }
-.reference-profile-switch { display: flex; padding: 4px; gap: 4px; border-radius: 10px; background: #1b2433; }
-.reference-profile-switch .button { flex: 1; min-height: 40px; font-size: 14px; color: #c3cad8; border-radius: 7px; }
-.reference-profile-switch .button.is-selected { background: #fff; color: #10151f; }
+.reference-profile-switch { display: flex; gap: 4px; }
 .reference-client-preview { padding: 14px 12px; background: #1b2433; border-radius: 10px; }
 .reference-management-links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 16px; color: #c3cad8; font-size: 14px; }
 .reference-shell .main-content { position: relative; max-width: 1180px; padding: 38px 40px 56px; }
@@ -16,14 +13,11 @@
 .reference-page { display: flex; flex-direction: column; gap: 28px; font-size: 16px; }
 .reference-page h1 { font-size: 36px; line-height: 1.1; letter-spacing: -.8px; }
 .reference-page h2 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
-.reference-page h3 { font-size: 16px; font-family: var(--font-body); letter-spacing: 0; }
+.reference-page h3:not(.card__title) { font-size: 16px; font-family: var(--font-body); letter-spacing: 0; }
 .reference-header, .reference-between { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
 .reference-header { align-items: flex-end; gap: 16px; }
 .reference-company { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; color: #586275; font-size: 14px; font-weight: 600; }
 .reference-company > span { width: 14px; height: 14px; border-radius: 5px; background: #1fb6dd; flex-shrink: 0; }
-.reference-card { padding: 18px 20px; gap: 0; border: 1px solid #dce0e8; border-radius: 12px; background: #fff; box-shadow: none; }
-.reference-card > .card__header { padding: 0; margin-bottom: 12px; gap: 2px; }
-.reference-card > .card__content { padding: 0; }
 .reference-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .reference-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .reference-stat-value { font-family: var(--font-heading); font-size: 40px; line-height: 1.1; font-weight: 700; }
@@ -31,32 +25,13 @@
 .reference-delta { margin-top: 4px; font-size: 14px; color: #075e51; font-weight: 600; }
 .reference-track { display: flex; gap: 3px; }
 .reference-track span { flex: 1; height: 8px; border-radius: 2px; }
-.reference-pill { border-radius: 13px; font-size: 13px; font-weight: 600; height: 26px; padding: 0 10px; white-space: nowrap; }
-.p-cinza { background: #e9ecf2; color: #3f4a5e; }
-.p-amber { background: #fff0cc; color: #7a4d00; }
-.p-teal { background: #d5f3ec; color: #075e51; }
-.p-azul { background: #e1e7ff; color: #1b33c4; }
-.p-ink { background: #10151f; color: #fff; }
-.p-red { background: #fde3e1; color: #9a1c14; }
-.reference-table-card { padding: 0; overflow: hidden; }
-.reference-table-card > .card__header { padding: 18px 20px 6px; margin: 0; }
-.reference-table { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
-.reference-table th { padding: 10px 14px; background: transparent; font-size: 14px; color: #586275; white-space: nowrap; border-bottom: 1px solid #dce0e8; }
-.reference-table thead { background: #fff; }
-.reference-table td { padding: 12px 14px; font-size: 15px; border-bottom: 1px solid #edeff4; vertical-align: middle; }
+.reference-table th { white-space: nowrap; }
 .reference-table td:first-child { min-width: 190px; }
 .reference-table td:nth-child(3) { min-width: 160px; }
 .reference-table td:last-child { white-space: nowrap; }
-.reference-table tr:last-child td { border-bottom: 0; }
-.reference-page .button { min-height: 44px; font-size: 15px; border-radius: 10px; font-weight: 600; }
-.reference-page .button--secondary { background: #fff; color: #10151f; border: 1px solid #dce0e8; }
 .reference-filters, .reference-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.reference-filter { border-radius: 20px !important; min-height: 40px !important; font-size: 14px !important; }
-.reference-page .is-selected { background: #10151f; color: #fff; border-color: #10151f; }
 .reference-tab { display: flex; gap: 8px; }
-.reference-next-step { border-color: #1fb6dd; }
 .reference-phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.reference-phases .reference-card { padding: 16px; }
 .reference-phases h2 { font-size: 18px; }
 .reference-stage { display: flex; gap: 10px; align-items: center; color: #3f4a5e; font-size: 15px; }
 .reference-stage.is-current { font-weight: 700; color: #10151f; }
@@ -78,7 +53,6 @@
 .reference-slide footer { margin-top: auto; display: flex; flex-wrap: wrap; gap: 4px; justify-content: space-between; font-size: 10px; opacity: .8; }
 .reference-logo-placeholder { padding: 2px 6px; border: 1px dashed currentColor; border-radius: 3px; }
 .reference-copy-block { margin-top: 10px; padding: 12px; border-radius: 8px; background: #f6f7fa; white-space: pre-wrap; font-size: 15px; max-height: 190px; overflow: auto; overflow-wrap: anywhere; }
-.reference-page .reference-copied { background: #0b7a6a; color: #fff; border-color: #0b7a6a; }
 .reference-image-preview { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; padding: 14px; color: #fff; font-size: 14px; margin-top: 12px; border-radius: 8px; }
 .reference-publication-status { margin-top: 8px; padding: 14px 16px; border-radius: 10px; background: #f6f7fa; font-size: 15px; }
 .reference-publication-success { padding: 14px 16px; border-radius: 10px; background: #d5f3ec; color: #075e51; font-size: 15px; }
@@ -124,8 +98,6 @@
   .reference-page h1 { font-size: 30px; }
   .reference-stats, .reference-phases, .reference-kpis, .reference-two-columns, .reference-checks { grid-template-columns: 1fr; }
   .reference-image-bank { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .reference-card { padding: 16px; }
-  .reference-table-card { padding: 0; }
   .reference-logo-preview { font-size: 12px; letter-spacing: 1px; }
   .reference-shell .sidebar .section-nav { grid-template-columns: 1fr; }
 }

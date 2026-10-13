@@ -2,6 +2,8 @@
 
 Implementadas em 13 de outubro de 2026, com componentes HeroUI v3 e o acesso autenticado existente.
 
+Após ajuste solicitado pelo usuário, os componentes usam a aparência nativa do HeroUI: cartões com `Card.Title` e `Card.Description`, badges com cores semânticas de `Chip`, botões e links com variantes da biblioteca e tabelas sem sobrescritas de borda, preenchimento ou tipografia. O CSS de referência mantém a organização das telas e as prévias das artes. Os tokens padrão de campos, superfícies, sombras e arredondamento foram restaurados; a cor de destaque da aplicação permanece azul.
+
 | Seção | Rota | Conteúdo |
 | --- | --- | --- |
 | Visão geral | `/dashboard` | Resumo e trilho de 11 etapas da Piersec |

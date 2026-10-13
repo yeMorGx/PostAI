@@ -5,13 +5,14 @@ import type { ReactNode } from "react";
 
 export function ReferenceCard({ children, className = "", title, description }: { children: ReactNode; className?: string; title?: string; description?: string }) {
   return <Card className={`reference-card ${className}`}>
-    {title && <Card.Header><h2>{title}</h2>{description && <p className="muted text-sm">{description}</p>}</Card.Header>}
+    {title && <Card.Header><Card.Title>{title}</Card.Title>{description && <Card.Description>{description}</Card.Description>}</Card.Header>}
     <Card.Content>{children}</Card.Content>
   </Card>;
 }
 
 export function ReferenceBadge({ children, tone = "p-cinza" }: { children: ReactNode; tone?: string }) {
-  return <Chip size="sm" className={`reference-pill ${tone}`}>{children}</Chip>;
+  const color = tone === "p-teal" ? "success" : tone === "p-amber" ? "warning" : tone === "p-red" ? "danger" : tone === "p-azul" ? "accent" : "default";
+  return <Chip color={color} variant="soft">{children}</Chip>;
 }
 
 export function ReferenceHeader({ title, description, company = true, children }: { title: string; description: string; company?: boolean; children?: ReactNode }) {
@@ -29,7 +30,7 @@ export function ReferenceTable({ label, columns, rows }: { label: string; column
 }
 
 export function FilterButtons({ label, options, value, onChange }: { label: string; options: { id: string; name: string }[]; value: string; onChange: (value: string) => void }) {
-  return <div role="group" aria-label={label} className="reference-filters">{options.map((option) => <Button key={option.id} variant="secondary" className={`reference-filter ${value === option.id ? "is-selected" : ""}`} aria-pressed={value === option.id} onPress={() => onChange(option.id)}>{option.name}</Button>)}</div>;
+  return <div role="group" aria-label={label} className="reference-filters">{options.map((option) => <Button key={option.id} variant={value === option.id ? "primary" : "secondary"} aria-pressed={value === option.id} onPress={() => onChange(option.id)}>{option.name}</Button>)}</div>;
 }
 
 export function ReferenceNotice() {

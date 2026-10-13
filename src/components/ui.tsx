@@ -8,7 +8,7 @@ export function Panel({ children, className = "", title }: { children: ReactNode
 export function Notice({ children, className = "", status = "accent" }: { children: ReactNode; className?: string; status?: "accent" | "danger" | "success" }) {
   return <Alert status={status} className={className}><Alert.Indicator/><Alert.Content><Alert.Description>{children}</Alert.Description></Alert.Content></Alert>;
 }
-export function AppLink({ href, children, className = "", variant, current }: { href: string; children: ReactNode; className?: string; variant?: "primary" | "secondary"; current?: boolean }) {
+export function AppLink({ href, children, className = "", variant, current }: { href: string; children: ReactNode; className?: string; variant?: "primary" | "secondary" | "tertiary" | "ghost"; current?: boolean }) {
   return <Link href={href} aria-current={current ? "page" : undefined} className={variant ? `${buttonVariants({ variant })} ${className}` : className} render={(props) => "href" in props ? <NextLink {...props} href={href}/> : <span {...props}/>}>{children}</Link>;
 }
 export function Choice({ value, onChange, options, label, disabled = false, className = "" }: { value: string; onChange: (value: string) => void; options: { id: string; label: string }[]; label: string; disabled?: boolean; className?: string }) {
