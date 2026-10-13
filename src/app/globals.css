@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+@import "./reference.css";
 
  :root, [data-theme="light"] { --background: #f2f3f6; --foreground: #10151f; --ink: #10151f; --muted: #586275; --line: #dce0e8; --border: #dce0e8; --separator: #dce0e8; --accent: #2d4bff; --accent-foreground: #fff; --surface: #fff; --surface-foreground: #10151f; --field-background: #fff; --field-foreground: #10151f; --field-border: #b5bdcb; --field-border-width: 1px; --radius: 8px; --surface-shadow: none; }
 @theme inline { --font-sans: var(--font-body); --font-display: var(--font-heading); }

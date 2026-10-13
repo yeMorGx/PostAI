@@ -1,0 +1,615 @@
+{
+  "ETAPAS": [
+    "Leitura da base",
+    "Pauta",
+    "Pesquisa e briefing",
+    "Artigo",
+    "Newsletter",
+    "Post de LinkedIn",
+    "Carrossel",
+    "Revisão",
+    "Aprovação final",
+    "Publicação",
+    "Atualização da base"
+  ],
+  "EMP": [
+    {
+      "id": "piersec",
+      "nome": "Piersec",
+      "cor": "#1FB6DD",
+      "etapa": 10,
+      "pecas": "5 peças, todas aprovadas",
+      "proximo": "Colar nas redes e marcar como publicada",
+      "alerta": ""
+    }
+  ],
+  "FASES": [
+    {
+      "nome": "Preparar",
+      "nota": "Base, pauta e briefing",
+      "de": 1,
+      "ate": 3
+    },
+    {
+      "nome": "Produzir",
+      "nota": "Artigo e derivados",
+      "de": 4,
+      "ate": 7
+    },
+    {
+      "nome": "Aprovar",
+      "nota": "Dois portões humanos",
+      "de": 8,
+      "ate": 9
+    },
+    {
+      "nome": "Entregar",
+      "nota": "Publicar e aprender",
+      "de": 10,
+      "ate": 11
+    }
+  ],
+  "PK": {
+    "carrossel": {
+      "rotulo": "o Instagram",
+      "aba": "Carrossel",
+      "destino": "Meta Business Suite ou aplicativo do Instagram",
+      "imgTitulo": "Lâminas do carrossel",
+      "dims": "1080×1350, 7 lâminas",
+      "eCarrossel": true,
+      "eImagem": false,
+      "baixar": "Baixar as 7 lâminas (zip)",
+      "imgNota": "",
+      "passos": [
+        "Baixe o zip e envie as lâminas na ordem numerada.",
+        "Cole a legenda e as hashtags.",
+        "Agende para quinta-feira, 10h.",
+        "Publique o story com a enquete."
+      ],
+      "blocos": [
+        {
+          "k": "c1",
+          "label": "Legenda",
+          "text": "Quem tem acesso a tudo na sua empresa hoje?\n\nContas criadas para um projeto costumam permanecer ativas muito depois do fim dele. Com o tempo, o número de pessoas com acesso amplo cresce sem que ninguém tenha decidido isso.\n\nO privilégio mínimo orienta o caminho: cada pessoa acessa apenas o que a função exige, e a revisão desses acessos acontece em ciclos definidos.\n\nSalve este post e compartilhe com quem decide segurança na sua empresa."
+        },
+        {
+          "k": "c2",
+          "label": "Hashtags",
+          "text": "#Cibersegurança #GestãoDeRisco #ContinuidadeOperacional #Piersec #GestãoDeAcessos #PrivilégioMínimo"
+        },
+        {
+          "k": "c3",
+          "label": "Story, 3 telas",
+          "text": "Tela 1: Quando foi a última revisão de acessos na sua empresa?\nSticker: enquete com “Neste trimestre” e “Não sei”.\n\nTela 2: Acessos antigos são um vetor de entrada silencioso.\n\nTela 3: Carrossel novo no feed. Toque para ver."
+        }
+      ]
+    },
+    "lkpost": {
+      "rotulo": "o LinkedIn (post)",
+      "aba": "Post LinkedIn",
+      "destino": "Página da empresa no LinkedIn",
+      "imgTitulo": "Imagem do post",
+      "dims": "1080×1350",
+      "eCarrossel": false,
+      "eImagem": true,
+      "baixar": "Baixar PNG",
+      "imgNota": "Gerada pela OpenAI a partir do conteúdo do artigo. O prompt fica salvo no pacote.",
+      "passos": [
+        "Abra a página da empresa e escolha criar publicação.",
+        "Anexe a imagem baixada.",
+        "Cole o texto. A primeira linha é a que aparece antes de “ver mais”.",
+        "Publique e volte aqui para marcar como publicada."
+      ],
+      "blocos": [
+        {
+          "k": "l1",
+          "label": "Texto do post",
+          "text": "O maior risco de segurança da sua empresa provavelmente tem login ativo agora.\n\nSão contas de ex-colaboradores, de projetos encerrados e de fornecedores que já não atuam. Cada uma é um vetor de entrada que ninguém monitora.\n\nA gestão de acessos privilegiados parte de uma pergunta simples: quem pode fazer o quê, e por quê?\n\nOrganizações com maior maturidade respondem com revisão periódica, privilégio mínimo e registro de quem aprovou cada acesso.\n\nQuando foi a última vez que a sua empresa revisou quem tem acesso a tudo?\n\nLeia o artigo completo: https://piersec.com.br/blog/gestao-de-acessos-privilegiados?utm_source=linkedin&utm_medium=post&utm_campaign=pai-0412"
+        },
+        {
+          "k": "l2",
+          "label": "Hashtags",
+          "text": "#Cibersegurança #GestãoDeRisco #ContinuidadeOperacional #Piersec #GestãoDeAcessos"
+        },
+        {
+          "k": "l3",
+          "label": "Primeiras linhas alternativas",
+          "text": "1. Quantas contas ativas na sua empresa pertencem a quem já saiu?\n2. Acesso concedido e nunca revisado é uma decisão que ninguém tomou."
+        }
+      ]
+    },
+    "lkart": {
+      "rotulo": "o LinkedIn (artigo)",
+      "aba": "Artigo LinkedIn",
+      "destino": "Editor de artigos do LinkedIn",
+      "imgTitulo": "Capa do artigo",
+      "dims": "1280×720",
+      "eCarrossel": false,
+      "eImagem": true,
+      "baixar": "Baixar capa em PNG",
+      "imgNota": "Capa gerada a partir do tema do artigo. Imagens internas seguem no mesmo zip.",
+      "passos": [
+        "Abra o editor de artigos do LinkedIn pela página da empresa.",
+        "Envie a capa e cole o título.",
+        "Cole o texto. Os subtítulos já estão marcados.",
+        "Revise as imagens internas e publique.",
+        "Volte aqui para marcar como publicada."
+      ],
+      "blocos": [
+        {
+          "k": "a1",
+          "label": "Título",
+          "text": "Acessos privilegiados: o controle que a maioria das empresas revisa tarde demais"
+        },
+        {
+          "k": "a2",
+          "label": "Texto do artigo",
+          "text": "Contexto\nMuitas organizações concedem acessos amplos para cumprir prazos. A revisão fica para depois e, com frequência, não acontece.\n\nDiagnóstico\nO acúmulo de permissões cria uma superfície de ataque que cresce sem que a gestão perceba. O risco aparece quando uma conta com muitos privilégios é comprometida.\n\nAplicação\nO privilégio mínimo, a revisão periódica e o registro de aprovações formam a base de uma gestão de acessos madura.\n\nImplicação\nO impacto financeiro de um incidente depende do que a conta comprometida podia alcançar. [texto completo no pacote]\n\nVersão completa no site: https://piersec.com.br/blog/gestao-de-acessos-privilegiados?utm_source=linkedin&utm_medium=artigo&utm_campaign=pai-0412"
+        }
+      ]
+    },
+    "news": {
+      "rotulo": "o Brevo",
+      "aba": "Newsletter",
+      "destino": "Editor de e-mail do Brevo (conta compartilhada)",
+      "imgTitulo": "Topo da newsletter",
+      "dims": "600 px de largura",
+      "eCarrossel": false,
+      "eImagem": true,
+      "baixar": "Baixar imagens",
+      "imgNota": "Faixa do topo com logo e selo. O HTML completo está no bloco ao lado.",
+      "passos": [
+        "No Brevo, crie uma campanha de e-mail e use exatamente o nome indicado.",
+        "Escolha o editor de HTML e cole o HTML completo.",
+        "Cole o assunto e o preheader.",
+        "Selecione a lista desta empresa e envie um teste.",
+        "Agende o envio. O PostAI acompanha a campanha sozinho."
+      ],
+      "blocos": [
+        {
+          "k": "n0",
+          "label": "Nome da campanha (interno do Brevo)",
+          "text": "PAI-0412 Acessos privilegiados"
+        },
+        {
+          "k": "n1",
+          "label": "Assuntos, 3 de 5 opções",
+          "text": "1. Quem ainda tem acesso a tudo na sua empresa?\n2. Acessos esquecidos são o risco mais silencioso\n3. A pergunta que a revisão de acessos responde"
+        },
+        {
+          "k": "n2",
+          "label": "Preheader",
+          "text": "Contas antigas continuam ativas. Veja como organizações maduras tratam o tema."
+        },
+        {
+          "k": "n3",
+          "label": "HTML do e-mail",
+          "text": "<!doctype html>\n<html lang=\"pt-BR\">\n<body style=\"margin:0;background:#ffffff\">\n  <table width=\"600\" align=\"center\">…</table>\n</body>\n</html>\n\n[HTML completo, com rodapé legal e link de cancelar inscrição]"
+        }
+      ]
+    },
+    "blog": {
+      "rotulo": "o WordPress",
+      "aba": "Artigo no blog",
+      "destino": "Painel do WordPress da empresa",
+      "imgTitulo": "Imagem de destaque",
+      "dims": "1200×630",
+      "eCarrossel": false,
+      "eImagem": true,
+      "baixar": "Baixar PNG",
+      "imgNota": "Imagem de destaque gerada a partir do tema. Alternativas do banco aparecem em “Usar do banco”.",
+      "passos": [
+        "No WordPress, crie um novo artigo.",
+        "Cole o título e o corpo no editor de blocos.",
+        "Preencha slug, categoria, tags e meta description.",
+        "Defina a imagem de destaque e publique."
+      ],
+      "blocos": [
+        {
+          "k": "b1",
+          "label": "Título e slug",
+          "text": "Título: Gestão de acessos privilegiados: o que a diretoria precisa perguntar\nSlug: gestao-de-acessos-privilegiados"
+        },
+        {
+          "k": "b2",
+          "label": "Meta description",
+          "text": "Acessos antigos e amplos ampliam a superfície de ataque. Entenda como organizações maduras revisam privilégios e reduzem o risco."
+        },
+        {
+          "k": "b3",
+          "label": "Corpo do artigo",
+          "text": "Toda organização concede acessos para que o trabalho aconteça. O desafio está em saber, meses depois, quem ainda precisa de cada um deles.\n\n[…]\n\n(Prévia. O corpo completo, com dados e fontes com link, está no pacote.)"
+        }
+      ]
+    }
+  },
+  "SL": [
+    [
+      "01",
+      "Quem tem acesso a tudo na sua empresa?",
+      "Gestão de acessos privilegiados",
+      "cover"
+    ],
+    [
+      "02",
+      "Acessos crescem sem revisão",
+      "Contas criadas para um projeto continuam ativas anos depois.",
+      "light"
+    ],
+    [
+      "03",
+      "Privilégio mínimo",
+      "Cada pessoa acessa apenas o que a função exige.",
+      "light"
+    ],
+    [
+      "07",
+      "Revise com a sua equipe",
+      "Salve este post e compartilhe com quem decide segurança.",
+      "cover"
+    ]
+  ],
+  "GRAD": [
+    "linear-gradient(135deg,#0A0F1E 0%,#16314F 55%,#33C3ED 150%)",
+    "linear-gradient(165deg,#0A0F1E 0%,#1C2B4A 55%,#43E3FA 160%)",
+    "linear-gradient(110deg,#16314F 0%,#0A0F1E 70%)"
+  ],
+  "BANCO": [
+    [
+      "Sala de reunião",
+      "Banco público",
+      "p-cinza",
+      "linear-gradient(135deg,#C9D3E6,#8FA3C7)"
+    ],
+    [
+      "Equipe em operação",
+      "Própria",
+      "p-teal",
+      "linear-gradient(135deg,#BFE3EA,#5FA9BA)"
+    ],
+    [
+      "Sala de servidores",
+      "Banco público",
+      "p-cinza",
+      "linear-gradient(135deg,#B6BFD0,#58637B)"
+    ],
+    [
+      "Capa do artigo de outubro",
+      "Gerada",
+      "p-azul",
+      "linear-gradient(135deg,#0A0F1E,#33C3ED 160%)"
+    ],
+    [
+      "Reunião de diretoria",
+      "Própria",
+      "p-teal",
+      "linear-gradient(135deg,#D6DCE8,#97A4BD)"
+    ],
+    [
+      "Analista no monitoramento",
+      "Gerada",
+      "p-azul",
+      "linear-gradient(135deg,#16314F,#43E3FA 170%)"
+    ]
+  ],
+  "conexoes": [
+    {
+      "nome": "Instagram",
+      "detalhe": "@piersecurity. Reconhece publicações e lê resultados",
+      "status": "Conectado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "WordPress",
+      "detalhe": "Reconhece artigos publicados pelo slug",
+      "status": "Conectado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "Google Analytics 4",
+      "detalhe": "Visitas por artigo e por origem",
+      "status": "Conectado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "Google Search Console",
+      "detalhe": "Cliques, impressões e posição na busca",
+      "status": "Pendente",
+      "pill": "p-amber"
+    },
+    {
+      "nome": "Brevo",
+      "detalhe": "Conta compartilhada com Atlas Logística. Lê campanhas",
+      "status": "Conectado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "LinkedIn",
+      "detalhe": "Sem API. Resultado medido por links rastreados",
+      "status": "Sem API",
+      "pill": "p-cinza"
+    }
+  ],
+  "DOCS": [
+    {
+      "nome": "00-voz-da-marca.md",
+      "detalhe": "Guia de voz, 4 regras de estilo e vocabulário",
+      "status": "Confirmado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "Manual da marca Piersec.pdf",
+      "detalhe": "Logo, cores, tipografia e uso de imagens",
+      "status": "Confirmado",
+      "pill": "p-teal"
+    },
+    {
+      "nome": "Apresentação institucional.pptx",
+      "detalhe": "Lido em 07/10. 2 pontos sem classificação",
+      "status": "Revisar",
+      "pill": "p-amber"
+    }
+  ],
+  "REG": [
+    {
+      "cat": "Proibido",
+      "pill": "p-red",
+      "verif": "Verificada por código",
+      "texto": "Nunca usar: blindagem, solução definitiva, segurança total, proteção absoluta, urgência, hackear, mundo digital.",
+      "origem": "00-voz-da-marca.md, Vocabulário proibido"
+    },
+    {
+      "cat": "Proibido",
+      "pill": "p-red",
+      "verif": "Verificada por IA",
+      "texto": "Sem antíteses do tipo “não é X, é Y”. Afirmar diretamente o que é verdadeiro.",
+      "origem": "00-voz-da-marca.md, Regra 1"
+    },
+    {
+      "cat": "Proibido",
+      "pill": "p-red",
+      "verif": "Verificada por código",
+      "texto": "Sem travessões como recurso de estilo.",
+      "origem": "00-voz-da-marca.md, Regra 2"
+    },
+    {
+      "cat": "Obrigatório",
+      "pill": "p-azul",
+      "verif": "Verificada por código",
+      "texto": "No máximo 2 blocos de bullets por peça.",
+      "origem": "00-voz-da-marca.md, Regra 3"
+    },
+    {
+      "cat": "Obrigatório",
+      "pill": "p-azul",
+      "verif": "Verificada por código",
+      "texto": "A empresa aparece uma única vez por peça, sem tom promocional.",
+      "origem": "00-voz-da-marca.md, Regra 4"
+    },
+    {
+      "cat": "Tom",
+      "pill": "p-cinza",
+      "verif": "Verificada por IA",
+      "texto": "Maduro, consultivo e sóbrio. Conectar segurança a impacto de negócio. Calibrar a gravidade com dados reais.",
+      "origem": "00-voz-da-marca.md, Tom"
+    },
+    {
+      "cat": "Visual",
+      "pill": "p-ink",
+      "verif": "Verificada por código",
+      "texto": "Paleta: navy #0A0F1E, ciano #33C3ED, destaque #43E3FA, fundo #EFF2F7. Tipografia Source Sans Pro.",
+      "origem": "Manual da marca, Cores e tipografia"
+    },
+    {
+      "cat": "Visual",
+      "pill": "p-ink",
+      "verif": "Verificada por IA",
+      "texto": "Nunca usar hacker encapuzado, cadeado, escudo, chave ou código verde em tela preta.",
+      "origem": "Manual da marca, Uso de imagens"
+    },
+    {
+      "cat": "Visual",
+      "pill": "p-ink",
+      "verif": "Verificada por código",
+      "texto": "Margens de 80 px. Logo oficial no rodapé, pequeno, sem versão digitada do nome.",
+      "origem": "Manual da marca, Aplicação do logo"
+    }
+  ],
+  "conferencia": [
+    "Vocabulário proibido: nenhum termo encontrado",
+    "Antíteses: nenhuma",
+    "Travessões: nenhum",
+    "Blocos de bullets: dentro do limite",
+    "Menções à empresa: 1 de 1 permitida",
+    "Paleta e margens da arte: conforme o manual"
+  ],
+  "KP": {
+    "7": [
+      [
+        "Engajamento no Instagram",
+        "660",
+        "+14% sobre a semana anterior"
+      ],
+      [
+        "Visitas ao site",
+        "1.740",
+        "+8%"
+      ],
+      [
+        "Cliques vindos do Google",
+        "380",
+        "+11%"
+      ],
+      [
+        "Abertura da newsletter",
+        "38%",
+        "+2 pontos"
+      ]
+    ],
+    "30": [
+      [
+        "Engajamento no Instagram",
+        "2.140",
+        "+18% sobre os 30 dias anteriores"
+      ],
+      [
+        "Visitas ao site",
+        "6.480",
+        "+12%"
+      ],
+      [
+        "Cliques vindos do Google",
+        "1.350",
+        "+16%"
+      ],
+      [
+        "Abertura da newsletter",
+        "37%",
+        "+1 ponto"
+      ]
+    ],
+    "90": [
+      [
+        "Engajamento no Instagram",
+        "5.980",
+        "+22% sobre os 90 dias anteriores"
+      ],
+      [
+        "Visitas ao site",
+        "18,2 mil",
+        "+15%"
+      ],
+      [
+        "Cliques vindos do Google",
+        "3.720",
+        "+21%"
+      ],
+      [
+        "Abertura da newsletter",
+        "36%",
+        "+3 pontos"
+      ]
+    ]
+  },
+  "MET": {
+    "ig": {
+      "nome": "Engajamento no Instagram",
+      "desc": "Curtidas, comentários, compartilhamentos e salvamentos somados",
+      "vals": [
+        380,
+        410,
+        395,
+        470,
+        455,
+        540,
+        590,
+        660
+      ],
+      "max": 700
+    },
+    "site": {
+      "nome": "Visitas ao site",
+      "desc": "Sessões no Google Analytics, todas as origens",
+      "vals": [
+        1180,
+        1240,
+        1210,
+        1390,
+        1450,
+        1520,
+        1610,
+        1740
+      ],
+      "max": 1900
+    },
+    "gsc": {
+      "nome": "Cliques vindos do Google",
+      "desc": "Cliques na busca orgânica, segundo o Search Console",
+      "vals": [
+        210,
+        225,
+        240,
+        268,
+        290,
+        322,
+        341,
+        380
+      ],
+      "max": 420
+    }
+  },
+  "SEM": [
+    "17/8",
+    "24/8",
+    "31/8",
+    "7/9",
+    "14/9",
+    "21/9",
+    "28/9",
+    "5/10"
+  ],
+  "CN": [
+    {
+      "k": "todos",
+      "n": "Todos"
+    },
+    {
+      "k": "Instagram",
+      "n": "Instagram"
+    },
+    {
+      "k": "Site",
+      "n": "Site e Google"
+    },
+    {
+      "k": "E-mail",
+      "n": "E-mail"
+    },
+    {
+      "k": "LinkedIn",
+      "n": "LinkedIn"
+    }
+  ],
+  "ALL": [
+    {
+      "titulo": "Acessos privilegiados, carrossel",
+      "canal": "Instagram",
+      "pill": "p-azul",
+      "data": "02/10",
+      "resultado": "Alcance 6.820 e 412 engajamentos",
+      "fonte": "Instagram"
+    },
+    {
+      "titulo": "Artigo: o que a diretoria precisa perguntar",
+      "canal": "Site",
+      "pill": "p-cinza",
+      "data": "30/09",
+      "resultado": "1.240 visitas, 96 cliques no Google, posição média 6,2",
+      "fonte": "Analytics e Search Console"
+    },
+    {
+      "titulo": "Newsletter: quem ainda tem acesso a tudo?",
+      "canal": "E-mail",
+      "pill": "p-teal",
+      "data": "03/10",
+      "resultado": "Abertura 38% e 96 cliques",
+      "fonte": "Brevo"
+    },
+    {
+      "titulo": "Post: o maior risco tem login ativo",
+      "canal": "LinkedIn",
+      "pill": "p-ink",
+      "data": "01/10",
+      "resultado": "86 visitas ao site vindas do post",
+      "fonte": "Link rastreado, Analytics"
+    },
+    {
+      "titulo": "Artigo no LinkedIn: acessos privilegiados",
+      "canal": "LinkedIn",
+      "pill": "p-ink",
+      "data": "01/10",
+      "resultado": "54 visitas ao site vindas do artigo",
+      "fonte": "Link rastreado, Analytics"
+    }
+  ]
+}
