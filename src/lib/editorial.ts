@@ -17,6 +17,19 @@ export const transitionSchema = z.object({ revision: z.number().int().positive()
 export const brandSchema = z.object({ revision: z.number().int().positive(), tone: z.string().trim().min(3).max(500), guidance: z.string().trim().min(3).max(12000), forbidden_terms: z.string().max(2000), primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/), accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).strict();
 export type EditorialPostInput = z.infer<typeof postSchema>;
 
+export const generationRequestSchema = z.object({
+  revision: z.number().int().positive(),
+  working_title: z.string().trim().max(180).default(""),
+  direction: z.string().trim().max(1000).default(""),
+}).strict();
+export const generatedDraftSchema = z.object({
+  title: z.string().trim().min(3).max(180),
+  body: z.string().trim().min(20).max(16000),
+  hashtags: z.string().max(1000),
+  slides: z.array(z.object({ title: z.string().trim().min(1).max(180), text: z.string().trim().min(1).max(1200) }).strict()).max(10),
+}).strict();
+export type GeneratedDraft = z.infer<typeof generatedDraftSchema>;
+
 export function saoPauloDate(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
   const value = (type: string) => parts.find((part) => part.type === type)!.value;

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useRouter } from "next/navigation";
 import { AppLink, Choice, Notice } from "@/components/ui";
 import { can, type Role } from "@/lib/permissions";
-import { channelLabels, formatScheduled, localDateTime, nextMonday, saoPauloDate, toScheduledIso, type BrandProfile, type Channel, type EditorialAsset, type EditorialCycle, type EditorialData, type EditorialPost } from "@/lib/editorial";
+import { channelLabels, formatScheduled, localDateTime, nextMonday, saoPauloDate, toScheduledIso, type BrandProfile, type Channel, type EditorialAsset, type EditorialCycle, type EditorialData, type EditorialPost, type GeneratedDraft } from "@/lib/editorial";
 import { fetchJson } from "@/lib/api-client";
 import { useEditorial } from "./use-editorial";
 import { CarouselMarquee } from "@/features/reference/carousel-marquee";
@@ -106,7 +106,7 @@ export function EditorialWorkspace({ mode, initialData, role, initialChannel = "
               <span className="editorial-post-picker__copy"><strong>{channelLabels[post.channel]}</strong><span>{post.title}</span><small>{formatScheduled(post.planned_for)}</small></span><StatusChip post={post}/>
             </Button>)}
           </Card.Content></Card>
-          {activePost && <PostComposer key={activePost.id} post={activePost} assets={data.assets.filter((asset) => asset.post_id === activePost.id)} canEdit={canEdit} canApprove={canApprove} pending={pending} onPending={setPending} onNotice={setNotice} onError={setError} refresh={state.refresh} mutate={state.mutate}/>}
+          {activePost && <PostComposer key={activePost.id} post={activePost} cycleTheme={activeCycle.theme} assets={data.assets.filter((asset) => asset.post_id === activePost.id)} canEdit={canEdit} canApprove={canApprove} pending={pending} onPending={setPending} onNotice={setNotice} onError={setError} refresh={state.refresh} mutate={state.mutate}/>}
         </div>
       </> : <Card><Card.Content><p className="editorial-muted">Crie a primeira semana para começar os rascunhos e horários.</p></Card.Content></Card>}
     </>}
@@ -155,8 +155,12 @@ function Overview({ data, role }: { data: EditorialData; role: Role }) {
 function Stat({ value, label, note }: { value: number; label: string; note: string }) { return <Card className="editorial-stat"><Card.Content><p className="editorial-stat__value">{value}</p><p className="editorial-stat__label">{label}</p><p className="editorial-muted">{note}</p></Card.Content></Card>; }
 
 type Draft = { revision: number; title: string; body: string; hashtags: string; slides: { title: string; text: string }[]; planned_for: string };
-function PostComposer({ post, assets, canEdit, canApprove, pending, onPending, onNotice, onError, refresh, mutate }: { post: EditorialPost; assets: EditorialAsset[]; canEdit: boolean; canApprove: boolean; pending: boolean; onPending: (value: boolean) => void; onNotice: (value: string) => void; onError: (value: string) => void; refresh: () => Promise<unknown>; mutate: ReturnType<typeof useEditorial>["mutate"] }) {
+function PostComposer({ post, cycleTheme, assets, canEdit, canApprove, pending, onPending, onNotice, onError, refresh, mutate }: { post: EditorialPost; cycleTheme: string; assets: EditorialAsset[]; canEdit: boolean; canApprove: boolean; pending: boolean; onPending: (value: boolean) => void; onNotice: (value: string) => void; onError: (value: string) => void; refresh: () => Promise<unknown>; mutate: ReturnType<typeof useEditorial>["mutate"] }) {
   const [draft, setDraft] = useState<Draft>(() => draftFromPost(post));
+  const [generationDirection, setGenerationDirection] = useState("");
+  const [generatedDraft, setGeneratedDraft] = useState<GeneratedDraft | null>(null);
+  const [generatedRevision, setGeneratedRevision] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [reviewNote, setReviewNote] = useState(post.review_note);
   const [publishUrl, setPublishUrl] = useState(post.publication_url ?? "");
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -171,6 +175,30 @@ function PostComposer({ post, assets, canEdit, canApprove, pending, onPending, o
       onNotice("Rascunho salvo. A aprovação anterior é removida sempre que o conteúdo muda.");
     } catch (cause) { onError(cause instanceof Error ? cause.message : "Não foi possível salvar a peça."); }
     finally { onPending(false); }
+  }
+
+  async function generateDraft() {
+    setGeneratedDraft(null); setGeneratedRevision(null); onError(""); onNotice(""); setGenerating(true);
+    try {
+      const result = await fetchJson<GeneratedDraft>(`/api/editorial/posts/${post.id}/generate`, {
+        method: "POST",
+        body: JSON.stringify({ revision: post.revision, working_title: draft.title, direction: generationDirection }),
+      });
+      setGeneratedDraft(result); setGeneratedRevision(post.revision);
+    } catch (cause) { onError(cause instanceof Error ? cause.message : "Não foi possível gerar a prévia."); }
+    finally { setGenerating(false); }
+  }
+
+  function applyGeneratedDraft() {
+    if (!generatedDraft) return;
+    if (generatedRevision !== post.revision || post.status !== "draft") {
+      setGeneratedDraft(null); setGeneratedRevision(null);
+      onError("A peça foi alterada. Atualize a tela antes de aplicar esta prévia.");
+      return;
+    }
+    setDraft((current) => ({ ...current, title: generatedDraft.title, body: generatedDraft.body, hashtags: generatedDraft.hashtags, slides: generatedDraft.slides }));
+    setGeneratedDraft(null); setGeneratedRevision(null);
+    onNotice("Prévia aplicada ao editor. Revise o texto e salve o rascunho.");
   }
 
   async function uploadFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -220,6 +248,20 @@ function PostComposer({ post, assets, canEdit, canApprove, pending, onPending, o
     {post.review_note && <Notice status="accent">Ajuste solicitado: {post.review_note}</Notice>}
     {post.publication_url && <p className="editorial-published-link"><a href={post.publication_url} target="_blank" rel="noreferrer">Abrir publicação registrada</a></p>}
     {canEdit && post.status !== "published" ? <Form className="editorial-form" onSubmit={(event) => void save(event)}>
+      {post.status === "draft" && <section className="editorial-ai" aria-labelledby="editorial-ai-title">
+        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">Gerar com OpenAI</h3><p className="editorial-muted">A prévia usa o tema da semana e, quando cadastradas, as regras da Piersec. Revise antes de aplicar ou salvar.</p></div><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending} onPress={() => void generateDraft()}>{generating ? "Gerando…" : "Gerar prévia"}</Button></div>
+        <p className="editorial-muted">Tema: {cycleTheme}. O tema e as regras cadastradas serão enviados à OpenAI. Nada é salvo até você aplicar e salvar o rascunho.</p>
+        <TextField value={generationDirection} onChange={setGenerationDirection}><Label>Orientação extra (opcional)</Label><TextArea rows={2} maxLength={1000} placeholder="Ex.: priorize um exemplo prático para gestores de TI"/></TextField>
+        {generating && <p className="editorial-muted" role="status" aria-live="polite">Aguardando a resposta da OpenAI…</p>}
+        {generatedDraft && generatedRevision === post.revision && <div className="editorial-ai__preview" role="region" aria-label="Prévia do conteúdo gerado" aria-live="polite">
+          <div><p className="editorial-muted">Prévia para revisar</p><h4>{generatedDraft.title}</h4></div>
+          <p className="editorial-ai__body">{generatedDraft.body}</p>
+          {generatedDraft.hashtags && <p className="editorial-hashtags">{generatedDraft.hashtags}</p>}
+          {generatedDraft.slides.length > 0 && <ol className="editorial-ai__slides">{generatedDraft.slides.map((slide, index) => <li key={`${slide.title}-${index}`}><strong>{slide.title}</strong><span>{slide.text}</span></li>)}</ol>}
+          <p className="editorial-muted">Aplicar substitui título, texto, hashtags e lâminas deste formulário. O horário não muda.</p>
+          <div className="editorial-actions editorial-ai__actions"><Button type="button" className="editorial-ai__action" variant="primary" onPress={applyGeneratedDraft}>Aplicar ao editor</Button><Button type="button" className="editorial-ai__action" variant="ghost" onPress={() => { setGeneratedDraft(null); setGeneratedRevision(null); }}>Descartar prévia</Button></div>
+        </div>}
+      </section>}
       <TextField value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} isRequired><Label>Título</Label><Input minLength={3} maxLength={180}/></TextField>
       <TextField value={draft.body} onChange={(body) => setDraft((current) => ({ ...current, body }))}><Label>Texto da publicação</Label><TextArea rows={9} maxLength={16000} placeholder="Escreva o conteúdo. Para enviar à aprovação, o texto precisa ter ao menos 20 caracteres."/></TextField>
       <TextField value={draft.hashtags} onChange={(hashtags) => setDraft((current) => ({ ...current, hashtags }))}><Label>Hashtags</Label><TextArea rows={2} maxLength={1000} placeholder="#ciberseguranca #Piersec"/></TextField>
