@@ -16,12 +16,18 @@ await db.exec(`
   grant usage on schema public, auth to authenticated, anon, service_role;
   grant execute on function auth.uid() to authenticated, anon, service_role;
   create schema realtime;
+  create schema storage;
+  create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+  create table storage.objects(id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+  alter table storage.objects enable row level security;
+  create function public.rls_auto_enable() returns void language plpgsql as $$ begin return; end $$;
   create table realtime.messages(id uuid default gen_random_uuid(), extension text);
   alter table realtime.messages enable row level security;
   create function realtime.topic() returns text language sql stable as $$
     select current_setting('request.realtime.topic', true)
   $$;
   grant usage on schema realtime to authenticated;
+  grant usage on schema storage to authenticated, anon, service_role;
   grant select, insert on realtime.messages to authenticated;
   grant execute on function realtime.topic() to authenticated;
 `);
@@ -53,6 +59,23 @@ async function denied(action, code = '42501') {
 }
 
 try {
+  let editorialCycle;
+  await check('New Piersec cycles contain only the four manual deliverables', async () => {
+    const week = (await db.query(`select (date_trunc('week', now() + interval '7 days'))::date as week`)).rows[0].week;
+    editorialCycle = (await as('editor', `select public.editorial_create_cycle($1::date,$2) as id`, [week, 'Governança de acessos'])).rows[0].id;
+    const channelRows = await as('editor', `select channel from public.editorial_posts where cycle_id=$1 order by channel`, [editorialCycle]);
+    assert.deepEqual(channelRows.rows.map((row) => row.channel), ['blog', 'carrossel', 'lkpost', 'news']);
+  });
+  await check('Week approval cannot replace individual approvals', () => denied(() => as('approver', `select public.editorial_approve_week($1)`, [editorialCycle]), '22023'));
+  await check('A single approved post cannot be scheduled before package confirmation', async () => {
+    const article = (await db.query(`select id from public.editorial_posts where cycle_id=$1 and channel='blog'`, [editorialCycle])).rows[0];
+    const saved = await as('editor', `select (public.editorial_save_post($1,1,'Artigo de teste','Conteúdo de teste suficientemente extenso para revisão humana.','', '[]'::jsonb, null)).revision as revision`, [article.id]);
+    const revision = saved.rows[0].revision;
+    await as('editor', `select public.editorial_transition($1,$2,'review')`, [article.id, revision]);
+    await as('approver', `select public.editorial_transition($1,$2,'approve')`, [article.id, revision]);
+    await denied(() => as('approver', `select public.editorial_transition($1,$2,'schedule')`, [article.id, revision]), '22023');
+  });
+  await check('Bulk review submission is disabled in favor of the staged workflow', () => denied(() => as('editor', `select public.editorial_submit_week($1)`, [editorialCycle])));
   await check('Anonymous users cannot read application tables', () => denied(() => as('anon', 'select * from public.workspaces')));
   await check('Authenticated outsiders cannot read members or workspaces', async () => {
     assert.equal((await as('outsider', 'select * from public.workspaces')).rows.length, 0);

@@ -8,11 +8,12 @@ Aplicação interna para preparar conteúdos de LinkedIn e Instagram. Next.js Ap
 - Entrada por link enviado por e-mail, convites com prazo e revogação.
 - Administração de pessoas e perfis, com proteção do último administrador.
 - Criação, edição, consulta e remoção de rascunhos por rede social.
-- Geração de prévias de texto com OpenAI, orientada pelo tema semanal e pelas regras de marca.
+- Geração OpenAI em etapas segundo `docs/piersec/baseline_piersec`: pesquisa e briefing com web search, artigo após aprovação do briefing e três derivados após aprovação do artigo.
+- Saídas de newsletter em HTML Piersec, LinkedIn, carrossel com direção visual por lâmina e prompts em inglês para fotos.
 - Histórico de ações no banco, atribuição de autoria e revisão incremental dos rascunhos.
 - Referência de conteúdo extraída dos materiais fornecidos. O HTML orienta cores, tipografia e composição. Os originais em Downloads não foram alterados.
 
-As prévias de texto são revisadas e salvas pela equipe, sem publicação automática. A aplicação ainda não gera imagens nem implementa presença ou edição colaborativa. Sem configuração do Supabase, a aplicação apresenta a configuração inicial e a tela de entrada desabilitada. Não há dados fictícios nem autenticação simulada.
+Toda geração é uma prévia: a equipe revisa, aplica e salva cada etapa, aprova as quatro peças e confirma o pacote antes do agendamento. Nada é publicado ou enviado automaticamente. Para briefing, a equipe informa as páginas e a síntese da base Piersec consultadas; o servidor não lê `docs/piersec` no Vercel. O carrossel recebe prompts de imagem, mas o PostAI ainda não gera os arquivos bitmap. Artigos LinkedIn legados podem permanecer nos ciclos antigos; novas semanas seguem os quatro canais do manual. Sem configuração do Supabase, a aplicação apresenta a configuração inicial e a tela de entrada desabilitada. Não há dados fictícios nem autenticação simulada.
 
 ## Executar
 
@@ -95,10 +96,9 @@ pnpm db:check
 
 1. Presença, comentários em threads, menções e atribuições com Supabase Realtime e RLS.
 2. Tiptap + Yjs, provider privado, snapshots, restauração e sugestões. Não incluir cursores multiplayer ou chat.
-3. OpenAI: geração de imagens, regras Piersec versionadas, fontes revisáveis e controle de uso.
-4. Planejamento semanal e calendário próprio em `America/Sao_Paulo`; aprovação do lote pelo marketing e invalidação da aprovação após alterações.
-5. OAuth de LinkedIn/Instagram, fila de publicação com retentativas, idempotência e auditoria. Nenhuma publicação sem aprovação.
-6. Compartilhamento com tokens aleatórios armazenados como hash, expiração, revogação e acesso limitado ao recurso; notificações/feed. Integração com calendário externo será definida posteriormente.
+3. Geração direta de arquivos de imagem, regras Piersec versionadas e controle de uso da API.
+4. OAuth de LinkedIn/Instagram, fila de publicação com retentativas, idempotência e auditoria. Nenhuma publicação sem aprovação.
+5. Compartilhamento com tokens aleatórios armazenados como hash, expiração, revogação e acesso limitado ao recurso; notificações/feed. Integração com calendário externo será definida posteriormente.
 
 ## Referências
 
