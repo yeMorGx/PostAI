@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { sameScheduledTime } from "./editorial";
+import { generationRequestSchema, sameScheduledTime } from "./editorial";
+
+describe("generationRequestSchema", () => {
+  it("permite iniciar a geração sem preencher uma conversa de newsletter", () => {
+    expect(generationRequestSchema.parse({ revision: 1 })).toEqual({ revision: 1, working_title: "", direction: "" });
+    expect(() => generationRequestSchema.parse({ revision: 1, newsletter_conversation: "conversa consultiva" })).toThrow();
+  });
+});
 
 describe("sameScheduledTime", () => {
   it("trata formatos UTC diferentes como o mesmo horário local", () => {

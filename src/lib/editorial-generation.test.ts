@@ -49,7 +49,7 @@ describe("geração editorial alinhada ao manual Piersec", () => {
     expect(() => buildGeneratedDraft("article", withNewSource, context)).toThrow(/material aprovado/i);
   });
 
-  it("gera newsletter responsiva com a conversa consultiva, WhatsApp e opt-out pendente", () => {
+  it("gera newsletter responsiva com conversa consultiva automática, WhatsApp e opt-out pendente", () => {
     const output = {
       subjects: ["Acesso e continuidade", "Uma revisão de acessos", "Governança de identidade", "Controles que acompanham mudanças", "Acesso privilegiado em pauta"],
       preheaders: ["Uma leitura para gestores", "Critérios para revisão periódica", "Governança conectada à operação"],
@@ -59,6 +59,8 @@ describe("geração editorial alinhada ao manual Piersec", () => {
       button: "Falar com a Piersec",
     };
     const draft = buildGeneratedDraft("newsletter", output, context);
+    expect(generationInstructions("newsletter", "manual oficial")).toContain("Derive do artigo aprovado um convite consultivo geral");
+    expect(generationInstructions("newsletter", "manual oficial")).toContain("sem inventar serviços, diagnósticos, avaliações ou compromissos");
     expect(draft.body).toContain("width:600px");
     expect(draft.body).toContain("{{unsubscribe_url}}");
     expect(draft.body).toContain("551332192277");

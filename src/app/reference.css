@@ -135,14 +135,6 @@
 .editorial-ai__top > div { min-width: 0; }
 .editorial-ai__top h3 { margin: 0; font-size: 17px; }
 .editorial-ai__action { min-height: 44px; }
-.editorial-ai__preview { display: grid; min-width: 0; gap: 12px; padding-top: 14px; border-top: 1px solid #e4e7ed; }
-.editorial-ai__preview h4 { margin: 3px 0 0; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
-.editorial-ai__body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
-.editorial-ai__sources { display: grid; gap: 7px; margin: 0; padding-left: 20px; }
-.editorial-ai__sources a { color: #314bce; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.editorial-ai__slides { display: grid; gap: 8px; margin: 0; padding-left: 22px; }
-.editorial-ai__slides li { padding-left: 3px; }
-.editorial-ai__slides strong, .editorial-ai__slides span { display: block; overflow-wrap: anywhere; }
 .editorial-ai__actions { gap: 9px; }
 .editorial-slides, .editorial-assets, .editorial-review-actions, .editorial-publish-form { display: grid; gap: 12px; padding-top: 14px; margin-top: 16px; border-top: 1px solid #e4e7ed; }
 .editorial-section-title { align-items: flex-end; }

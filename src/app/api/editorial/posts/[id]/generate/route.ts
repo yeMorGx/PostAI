@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
     if (postError) editorialError(postError);
     if (!post) throw new HttpError(404, "Peça não encontrada.");
-    if (post.revision !== input.revision) throw new HttpError(409, "A peça mudou. Atualize a tela antes de gerar uma nova prévia.");
+    if (post.revision !== input.revision) throw new HttpError(409, "A peça mudou. Atualize a tela antes de iniciar a geração.");
 
     const [cycleResult, brandResult] = await Promise.all([
       supabase.from("editorial_cycles").select("theme").eq("id", post.cycle_id).eq("workspace_id", workspace.id).maybeSingle(),
@@ -73,7 +73,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw cause;
     }
     let appUrl = process.env.APP_URL?.trim() ?? "";
-    if (kind === "newsletter" && input.newsletter_conversation.length < 20) throw new HttpError(422, "Informe qual conversa a operação quer abrir com o leitor antes de gerar a newsletter.");
     if (kind === "newsletter") {
       try {
         const configuredUrl = new URL(appUrl);
@@ -88,7 +87,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       current_title: input.working_title || post.title || cycleResult.data.theme,
       current_date: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "long" }).format(new Date()),
       additional_direction: input.direction,
-      newsletter_conversation: kind === "newsletter" ? input.newsletter_conversation : "",
       brand: brandResult.data ?? null,
       knowledge_base_context: knowledgeContext,
       approved_briefing: approvedBriefing,
@@ -167,12 +165,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (latestParentResult.error) editorialError(latestParentResult.error);
     const latestPost = latestPostResult.data;
     if (!latestPost || latestPost.status !== post.status || latestPost.revision !== input.revision || latestPost.approved_revision !== post.approved_revision || (kind === "article" && latestPost.body !== approvedBriefing)) {
-      throw new HttpError(409, "A peça mudou enquanto a prévia era gerada. Atualize e tente novamente.");
+      throw new HttpError(409, "A peça mudou enquanto o conteúdo era gerado. Atualize e tente novamente.");
     }
     if (parentArticle) {
       const latestParent = latestParentResult.data;
       if (!latestParent || latestParent.status !== "approved" || latestParent.revision !== parentArticle.revision || latestParent.approved_revision !== parentArticle.approved_revision) {
-        throw new HttpError(409, "O artigo aprovado mudou enquanto a prévia era gerada. Atualize e tente novamente.");
+        throw new HttpError(409, "O artigo aprovado mudou enquanto o conteúdo era gerado. Atualize e tente novamente.");
       }
     }
 
