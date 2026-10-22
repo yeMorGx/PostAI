@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { generationRequestSchema, sameScheduledTime } from "./editorial";
 
 describe("generationRequestSchema", () => {
-  it("permite iniciar a geração sem preencher uma conversa de newsletter", () => {
-    expect(generationRequestSchema.parse({ revision: 1 })).toEqual({ revision: 1, working_title: "", direction: "" });
+  it("inicia a geração sem campos manuais além da revisão e do título de trabalho", () => {
+    expect(generationRequestSchema.parse({ revision: 1 })).toEqual({ revision: 1, working_title: "" });
+    expect(() => generationRequestSchema.parse({ revision: 1, direction: "texto opcional" })).toThrow();
     expect(() => generationRequestSchema.parse({ revision: 1, newsletter_conversation: "conversa consultiva" })).toThrow();
   });
 });

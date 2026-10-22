@@ -86,7 +86,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       weekly_theme: cycleResult.data.theme,
       current_title: input.working_title || post.title || cycleResult.data.theme,
       current_date: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "long" }).format(new Date()),
-      additional_direction: input.direction,
       brand: brandResult.data ?? null,
       knowledge_base_context: knowledgeContext,
       approved_briefing: approvedBriefing,
