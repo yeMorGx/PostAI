@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { AppLink, Choice, Notice } from "@/components/ui";
 import { can, type Role } from "@/lib/permissions";
 import { channelLabels, cycleChannels, formatScheduled, isPiersecBriefing, localDateTime, nextMonday, sameScheduledTime, saoPauloDate, toScheduledIso, type BrandProfile, type CarouselSlide, type Channel, type EditorialAsset, type EditorialCycle, type EditorialData, type EditorialPost, type GeneratedDraft } from "@/lib/editorial";
-import { fetchJson } from "@/lib/api-client";
+import { fetchGenerationJson, fetchJson } from "@/lib/api-client";
 import { useEditorial } from "./use-editorial";
 import { CarouselMarquee } from "@/features/reference/carousel-marquee";
+import { addGenerationCost, emptyGenerationCost, type GenerationCost } from "@/lib/generation-cost";
+import { GenerationCostSummary } from "./generation-cost-summary";
 
 type Mode = "overview" | "cycle" | "delivery" | "identity" | "results" | "calendar";
 const channelList: Channel[] = ["blog", "news", "lkpost", "carrossel", "lkart"];
@@ -167,6 +169,8 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const [draft, setDraft] = useState<Draft>(() => draftFromPost(post));
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState("");
+  const [generationCost, setGenerationCost] = useState<GenerationCost | null>(null);
+  const [costLabel, setCostLabel] = useState("Custo desta geração");
   const [carouselImageRetry, setCarouselImageRetry] = useState<CarouselImageTask | null>(() => {
     if (post.channel !== "carrossel") return null;
     const attached = new Set(assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
@@ -217,13 +221,14 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   async function generateDraft() {
     const hasSavedContent = Boolean(post.body.trim() || post.hashtags.trim() || post.slides.length || post.title !== cycleTheme);
     if (hasSavedContent && !window.confirm("Gerar novamente substitui o conteúdo salvo desta peça. Ela continuará como rascunho e não será publicada. Deseja continuar?")) return;
+    setGenerationCost(emptyGenerationCost()); setCostLabel("Custo desta geração");
     onError(""); onNotice(""); setGenerating(true); onPending(true);
     try {
       setGenerationProgress(post.channel === "carrossel" ? "Gerando texto e direções visuais…" : isBriefingDraft ? "Pesquisando fontes e preparando o briefing…" : "Gerando o conteúdo a partir da etapa aprovada…");
-      const result = await fetchJson<GeneratedDraft>(`/api/editorial/posts/${post.id}/generate`, {
+      const result = await fetchGenerationJson<GeneratedDraft & { generation_cost: GenerationCost }>(`/api/editorial/posts/${post.id}/generate`, {
         method: "POST",
         body: JSON.stringify({ revision: post.revision, working_title: draft.title }),
-      });
+      }, recordGenerationCost);
       setGenerationProgress("Salvando a peça completa para revisão…");
       const saved = await persistDraft({ ...draft, title: result.title, body: result.body, hashtags: result.hashtags, slides: result.slides });
       setDraft(draftFromPost(saved));
@@ -243,6 +248,10 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
       onNotice(`${label} gerado e salvo em rascunho. Revise a peça antes de enviá-la para aprovação. Nada foi publicado.`);
     } catch (cause) { onError(cause instanceof Error ? cause.message : "Não foi possível gerar e salvar a peça."); }
     finally { setGenerating(false); setGenerationProgress(""); onPending(false); }
+  }
+
+  function recordGenerationCost(cost: GenerationCost | undefined) {
+    if (cost) setGenerationCost((current) => addGenerationCost(current ?? emptyGenerationCost(), cost));
   }
 
   async function generateCarouselImages(task: CarouselImageTask) {
@@ -278,10 +287,10 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
 
       for (const [position, index] of toGenerate.entries()) {
         setGenerationProgress(`Gerando foto ${position + 1} de ${toGenerate.length} · lâmina ${index + 1}…`);
-        const result = await fetchJson<{ revision: number }>(`/api/editorial/posts/${post.id}/generate-image`, {
+        const result = await fetchGenerationJson<{ revision: number; generation_cost: GenerationCost }>(`/api/editorial/posts/${post.id}/generate-image`, {
           method: "POST",
           body: JSON.stringify({ revision, slide_index: index }),
-        });
+        }, recordGenerationCost);
         revision = result.revision;
         completed += 1;
       }
@@ -324,6 +333,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   }
 
   async function resumeCarouselImages() {
+    if (!generationCost) { setGenerationCost(emptyGenerationCost()); setCostLabel("Custo desta retomada"); }
     if (carouselImageRetry) await generateCarouselImages(carouselImageRetry);
   }
 
@@ -378,6 +388,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
       {(canGenerate || post.channel === "carrossel") && <section className="editorial-ai" aria-labelledby="editorial-ai-title">
         <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing aprovado" : "Peça derivada do artigo aprovado"}</h3><p className="editorial-muted">{isBriefingDraft ? "A busca usa fontes primárias e consulta automaticamente a base Piersec pelo tema. O briefing precisa de aprovação humana antes da redação do artigo." : isApprovedBriefing ? "A redação usa somente o briefing aprovado. A aprovação anterior é substituída pelo novo rascunho." : "A geração usa o artigo de blog aprovado nesta semana e preserva as fontes dele."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" aria-label={`Gerar ${channelLabels[post.channel]} com OpenAI`} aria-describedby={post.channel === "carrossel" && carouselGenerationBlockReason ? "carousel-generation-help" : undefined} isPending={generating} isDisabled={generating || pending || !canGenerate} onPress={() => void generateDraft()}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Gerando conteúdo…" : <span className="inline-flex items-center gap-2">Gerar com <OpenAIMark /></span>}</Button></div>
         <p className="editorial-muted">Tema: {cycleTheme}. A ação gera e salva o rascunho completo para revisão. No carrossel, também cria as fotos indicadas pelo manual. As aprovações continuam humanas e nada é publicado automaticamente.</p>
+        <GenerationCostSummary postId={post.id} revision={post.revision} stage={isBriefingDraft ? "briefing" : isApprovedBriefing ? "article" : post.channel} title={draft.title} enabled={canEdit && canGenerate && !generating} retryPhotos={carouselImageRetry?.slideIndexes.length ?? 0} cost={generationCost} costLabel={costLabel}/>
         {post.channel === "carrossel" && carouselGenerationBlockReason && <p id="carousel-generation-help" className="editorial-muted" role="status" aria-live="polite">{carouselGenerationBlockReason}</p>}
         {generating && <p className="editorial-muted" role="status" aria-live="polite">{generationProgress || "Aguardando a resposta da OpenAI…"}</p>}
         {carouselImageRetry && post.channel === "carrossel" && <div className="editorial-ai__actions"><p className="editorial-muted" role="status">O texto já está salvo. {carouselImageRetry.slideIndexes.length} foto(s) aguardam geração.</p><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending || dirty} onPress={() => void resumeCarouselImages()}>{generating ? "Retomando fotos…" : "Retomar geração das fotos"}</Button></div>}

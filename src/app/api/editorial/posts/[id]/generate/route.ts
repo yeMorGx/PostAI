@@ -3,21 +3,20 @@ import { requireApiContext } from "@/lib/auth";
 import { channelLabels, generatedDraftSchema, generationRequestSchema, isPiersecBriefing } from "@/lib/editorial";
 import { apiError, assertSameOrigin, HttpError, readJson } from "@/lib/http";
 import { editorialError } from "@/lib/editorial-server";
-import { buildGeneratedDraft, extractResponseText, extractWebSearchUrls, generationInstructions, outputFormat } from "@/lib/editorial-generation";
-import { loadEditorialManual, PiersecManualUnavailableError } from "@/lib/piersec-manual";
+import { buildGeneratedDraftWithRepair, buildGenerationRepairRequest, extractResponseText, extractWebSearchUrls, generationInstructions, outputFormat } from "@/lib/editorial-generation";
+import { loadCarouselVisualRules, loadEditorialManual, PiersecManualUnavailableError } from "@/lib/piersec-manual";
 import { loadPiersecKnowledgeContext, PiersecKnowledgeUnavailableError } from "@/lib/piersec-knowledge";
 import { uuidSchema } from "@/lib/schemas";
+import { buildImageGenerationPrompt } from "@/lib/editorial-image-generation";
+import { addGenerationCost, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, emptyGenerationCost, estimateGenerationCost, MAX_SEARCH_CALLS, textResponseCost } from "@/lib/generation-cost";
+import { generationApiError } from "@/lib/generation-cost-server";
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 type GenerationKind = "briefing" | "article" | "newsletter" | "linkedin_post" | "carousel";
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOrigin(request);
+async function prepareGeneration(id: string, input: { revision: number; working_title: string }) {
     const { supabase, workspace } = await requireApiContext("edit");
-    const id = uuidSchema.parse((await params).id);
-    const input = generationRequestSchema.parse(await readJson(request));
     const { data: post, error: postError } = await supabase.from("editorial_posts")
       .select("id,cycle_id,channel,title,body,status,revision,approved_revision")
       .eq("id", id).eq("workspace_id", workspace.id).maybeSingle();
@@ -64,8 +63,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       kind = post.channel === "news" ? "newsletter" : post.channel === "lkpost" ? "linkedin_post" : "carousel";
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
-    if (!apiKey) throw new HttpError(503, "A geração ainda não foi configurada. Adicione OPENAI_API_KEY às variáveis do servidor.");
     try {
       knowledgeContext = (await loadPiersecKnowledgeContext(cycleResult.data.theme, kind)).context;
     } catch (cause) {
@@ -98,34 +95,78 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw cause;
     }
     const requestBody: Record<string, unknown> = {
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-6-luna",
+      model: process.env.OPENAI_MODEL?.trim() || DEFAULT_TEXT_MODEL,
       instructions: generationInstructions(kind, manual),
       input: JSON.stringify(context),
       max_output_tokens: kind === "article" || kind === "newsletter" ? 8000 : 6000,
       store: false,
+      service_tier: "default",
       text: { format: outputFormat(kind) },
     };
     if (kind === "briefing") {
       requestBody.tools = [{ type: "web_search" }];
       requestBody.tool_choice = "required";
       requestBody.include = ["web_search_call.action.sources"];
+      requestBody.max_tool_calls = MAX_SEARCH_CALLS;
     }
+    return { supabase, workspace, post, kind, knowledgeContext, approvedBriefing, approvedArticleBody, parentArticle, appUrl, context, requestBody };
+}
 
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const id = uuidSchema.parse((await params).id);
+    const query = request.nextUrl.searchParams;
+    const input = generationRequestSchema.parse({ revision: Number(query.get("revision")), working_title: query.get("working_title") ?? "" });
+    const { supabase, workspace, kind, context, requestBody } = await prepareGeneration(id, input);
+    let imagePrompt: string | undefined;
+    let maxPhotos = 0;
+    if (kind === "carousel") {
+      const [rules, knowledge, assets] = await Promise.all([
+        loadCarouselVisualRules(),
+        loadPiersecKnowledgeContext(context.weekly_theme, "carousel", 6000),
+        supabase.from("editorial_assets").select("file_name").eq("post_id", id).eq("workspace_id", workspace.id),
+      ]);
+      if (assets.error) editorialError(assets.error);
+      const occupiedSlots = new Set((assets.data ?? []).flatMap((asset) => /^slide-0[1-9]\.webp$/u.test(asset.file_name) ? [asset.file_name] : []));
+      maxPhotos = Math.max(0, Math.min(9 - occupiedSlots.size, 10 - (assets.data?.length ?? 0)));
+      imagePrompt = buildImageGenerationPrompt(rules, { role: "content", visual_direction: "A".repeat(600) }, knowledge.context);
+    }
+    const estimate = estimateGenerationCost({
+      model: String(requestBody.model), prompt: JSON.stringify(requestBody), maxOutputTokens: Number(requestBody.max_output_tokens), search: kind === "briefing",
+      ...(kind === "carousel" ? { imageModel: process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL, imagePrompt, maxPhotos } : {}),
+    });
+    return NextResponse.json(estimate, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return apiError(error); }
+}
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let generationCost = emptyGenerationCost();
+  try {
+    assertSameOrigin(request);
+    const id = uuidSchema.parse((await params).id);
+    const input = generationRequestSchema.parse(await readJson(request));
+    const { supabase, workspace, post, kind, knowledgeContext, approvedBriefing, approvedArticleBody, parentArticle, appUrl, context, requestBody } = await prepareGeneration(id, input);
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) throw new HttpError(503, "A geração ainda não foi configurada. Adicione OPENAI_API_KEY às variáveis do servidor.");
+
+    async function requestGeneration(body: Record<string, unknown>) {
     let response: Response;
     try {
       response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(body),
         cache: "no-store",
         signal: AbortSignal.timeout(55_000),
       });
     } catch (cause) {
+      generationCost = addGenerationCost(generationCost, { usd: 0, requests: 1, unpriced_requests: 1 });
       const timedOut = cause instanceof Error && ["TimeoutError", "AbortError"].includes(cause.name);
       throw new HttpError(timedOut ? 504 : 502, timedOut ? "A pesquisa ou geração levou mais que o esperado. Tente novamente." : "Não foi possível conectar à OpenAI. Tente novamente.");
     }
 
     if (!response.ok) {
+      if (response.status >= 500) generationCost = addGenerationCost(generationCost, { usd: 0, requests: 1, unpriced_requests: 1 });
       console.error("OpenAI editorial generation failed", { status: response.status, requestId: response.headers.get("x-request-id") });
       if (response.status === 429) throw new HttpError(429, "A OpenAI atingiu um limite de uso. Confira o projeto e tente novamente mais tarde.");
       if (response.status === 401 || response.status === 403 || response.status === 400) throw new HttpError(502, "A OpenAI recusou a solicitação. Confira OPENAI_API_KEY e se OPENAI_MODEL aceita Structured Outputs e, para briefing, web_search.");
@@ -133,23 +174,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const payload: unknown = await response.json().catch(() => null);
+    generationCost = addGenerationCost(generationCost, textResponseCost(payload, String(body.model)));
     const output = extractResponseText(payload);
-    if (output.refused) throw new HttpError(422, "A OpenAI não conseguiu elaborar este conteúdo. Ajuste a orientação e tente novamente.");
+    if (output.refused) throw new HttpError(422, "A OpenAI não conseguiu elaborar este conteúdo. Revise o tema da semana e tente novamente.");
     if (output.status !== "completed" || !output.text) throw new HttpError(502, "A OpenAI retornou uma resposta incompleta. Tente novamente.");
     let generated: unknown;
     try { generated = JSON.parse(output.text); }
     catch { throw new HttpError(502, "A resposta da OpenAI veio em um formato inválido. Tente novamente."); }
+    return { payload, generated };
+    }
 
+    const { payload, generated } = await requestGeneration(requestBody);
     let draft;
     try {
-      draft = buildGeneratedDraft(kind, generated, {
+      draft = await buildGeneratedDraftWithRepair(kind, generated, {
         title: context.current_title,
         knowledgeContext,
         webUrls: kind === "briefing" ? extractWebSearchUrls(payload) : [],
         approvedArticleBody: kind === "article" ? approvedBriefing : approvedArticleBody,
         appUrl,
+      }, async (invalidDraft, feedback) => {
+        const repair = buildGenerationRepairRequest(kind, requestBody, context, invalidDraft, feedback);
+        const repaired = (await requestGeneration(repair.body)).generated;
+        return repair.metadataOnly ? { ...(invalidDraft as Record<string, unknown>), meta_description: repaired && typeof repaired === "object" ? (repaired as Record<string, unknown>).meta_description : undefined } : repaired;
       });
     } catch (cause) {
+      if (cause instanceof HttpError) throw cause;
       const message = cause instanceof Error ? cause.message : "A resposta não passou na revisão do formato Piersec.";
       throw new HttpError(422, message);
     }
@@ -173,6 +223,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    return NextResponse.json(parsedDraft.data, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return apiError(error); }
+    return NextResponse.json({ ...parsedDraft.data, generation_cost: generationCost }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return generationApiError(error, generationCost); }
 }

@@ -101,7 +101,7 @@ function outputSchema(kind: "briefing" | "article" | "newsletter" | "linkedin_po
 export function generationInstructions(kind: "briefing" | "article" | "newsletter" | "linkedin_post" | "carousel", manual: string) {
   const mode = {
     briefing: "MODO 1: Briefing, do agente de pesquisa e artigo.",
-    article: "MODO 2: Artigo, do agente de pesquisa e artigo.",
+    article: "MODO 2: Artigo, do agente de pesquisa e artigo. Confira o tamanho de meta_description contando espaços: entre 150 e 160 caracteres, idealmente 155.",
     newsletter: "Agente de newsletter.",
     linkedin_post: "Agente de LinkedIn.",
     carousel: "Agente de carrossel.",
@@ -406,4 +406,44 @@ export function buildGeneratedDraft(kind: "briefing" | "article" | "newsletter" 
   if (kind === "newsletter") return buildNewsletter(newsletterSchema.parse(value), sourceLinks, context.appUrl);
   if (kind === "linkedin_post") return buildLinkedin(linkedinSchema.parse(value), sourceLinks.map((source) => source.url));
   return buildCarousel(carouselSchema.parse(value), sourceLinks);
+}
+
+export function generationValidationMessage(cause: unknown) {
+  if (cause instanceof z.ZodError) {
+    if (cause.issues.some((issue) => issue.path[0] === "meta_description")) return "A descrição SEO precisa ter entre 150 e 160 caracteres, contando espaços.";
+    return "O conteúdo gerado precisa de ajustes de estrutura ou tamanho para seguir o manual Piersec.";
+  }
+  return cause instanceof Error ? cause.message : "O conteúdo não passou na conferência do manual Piersec.";
+}
+
+export function buildGenerationRepairRequest(kind: Parameters<typeof buildGeneratedDraft>[0], original: Record<string, unknown>, context: unknown, invalidDraft: unknown, feedback: string) {
+  const candidate = invalidDraft && typeof invalidDraft === "object" ? invalidDraft as Record<string, unknown> : null;
+  const description = candidate?.meta_description;
+  const metadataOnly = kind === "article" && candidate !== null && (typeof description !== "string" || description.trim().length < 150 || description.trim().length > 160);
+  const body = { ...original };
+  delete body.tools;
+  delete body.tool_choice;
+  delete body.include;
+  delete body.max_tool_calls;
+  body.instructions = `${original.instructions}\n\nCorrija o rascunho para passar na validação do manual. Preserve fontes, dados e campos já corretos. Não pesquise nem invente dados. Para meta_description, conte os caracteres incluindo espaços e use entre 150 e 160, idealmente 155. ${metadataOnly ? "Retorne somente meta_description, conforme o schema. O restante do artigo será preservado pela aplicação." : "Retorne o objeto JSON completo corrigido."}`;
+  body.input = JSON.stringify(metadataOnly ? { title: candidate.title, article: candidate.article, meta_description: description, correction: feedback } : { context, draft: invalidDraft, correction: feedback });
+  if (metadataOnly) {
+    body.max_output_tokens = 1000;
+    body.text = { format: { type: "json_schema", name: "piersec_meta_description", strict: true, schema: objectField({ meta_description: stringField(150, 160) }, ["meta_description"]) } };
+  }
+  return { body, metadataOnly };
+}
+
+export async function buildGeneratedDraftWithRepair(
+  kind: Parameters<typeof buildGeneratedDraft>[0],
+  value: unknown,
+  context: Parameters<typeof buildGeneratedDraft>[2],
+  repair: (value: unknown, feedback: string) => Promise<unknown>,
+) {
+  try { return buildGeneratedDraft(kind, value, context); }
+  catch (cause) {
+    const repaired = await repair(value, generationValidationMessage(cause));
+    try { return buildGeneratedDraft(kind, repaired, context); }
+    catch (repairError) { throw new Error(`A correção automática não concluiu a peça. ${generationValidationMessage(repairError)} Tente gerar novamente.`); }
+  }
 }

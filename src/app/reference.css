@@ -136,6 +136,11 @@
 .editorial-ai__top h3 { margin: 0; font-size: 17px; }
 .editorial-ai__action { min-height: 44px; }
 .editorial-ai__actions { gap: 9px; }
+.editorial-ai__cost { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.editorial-ai__cost p { margin: 0 0 8px; }
+.editorial-ai__cost summary { width: fit-content; min-height: 44px; padding: 12px 0; cursor: pointer; }
+.editorial-ai__cost summary:focus-visible { outline: 2px solid #314bce; outline-offset: 3px; }
+.editorial-ai__cost a { color: #314bce; text-decoration: underline; text-underline-offset: 2px; }
 .editorial-slides, .editorial-assets, .editorial-review-actions, .editorial-publish-form { display: grid; gap: 12px; padding-top: 14px; margin-top: 16px; border-top: 1px solid #e4e7ed; }
 .editorial-section-title { align-items: flex-end; }
 .editorial-section-title h3, .editorial-review-actions h3, .editorial-publish-form h3 { margin: 0; font-size: 17px; }

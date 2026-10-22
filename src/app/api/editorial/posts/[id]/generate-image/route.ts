@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiContext } from "@/lib/auth";
-import { apiError, assertSameOrigin, HttpError, readJson } from "@/lib/http";
+import { assertSameOrigin, HttpError, readJson } from "@/lib/http";
 import { isPiersecBriefing } from "@/lib/editorial";
 import { editorialError } from "@/lib/editorial-server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,6 +11,8 @@ import { buildImageGenerationPrompt } from "@/lib/editorial-image-generation";
 import { loadCarouselVisualRules, PiersecManualUnavailableError } from "@/lib/piersec-manual";
 import { loadPiersecKnowledgeContext, PiersecKnowledgeUnavailableError } from "@/lib/piersec-knowledge";
 import { uuidSchema } from "@/lib/schemas";
+import { addGenerationCost, DEFAULT_IMAGE_MODEL, emptyGenerationCost, IMAGE_QUALITY, IMAGE_SIZE, imageResponseCost } from "@/lib/generation-cost";
+import { generationApiError } from "@/lib/generation-cost-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -27,6 +29,7 @@ const slideSchema = z.object({
 }).passthrough();
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let generationCost = emptyGenerationCost();
   try {
     assertSameOrigin(request);
     const { supabase, workspace, user } = await requireApiContext("edit");
@@ -91,10 +94,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2.5-flare",
+          model: process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL,
           prompt: buildImageGenerationPrompt(visualRules, parsedSlide.data, knowledgeContext),
-          size: "1088x1360",
-          quality: "high",
+          size: IMAGE_SIZE,
+          quality: IMAGE_QUALITY,
           output_format: "webp",
           output_compression: 82,
           n: 1,
@@ -104,11 +107,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         signal: AbortSignal.timeout(150_000),
       });
     } catch (cause) {
+      generationCost = addGenerationCost(generationCost, { usd: 0, requests: 1, unpriced_requests: 1 });
       const timedOut = cause instanceof Error && ["TimeoutError", "AbortError"].includes(cause.name);
       throw new HttpError(timedOut ? 504 : 502, timedOut ? "A geração levou mais de dois minutos. Tente novamente." : "Não foi possível conectar à OpenAI para gerar a imagem.");
     }
 
     if (!response.ok) {
+      if (response.status >= 500) generationCost = addGenerationCost(generationCost, { usd: 0, requests: 1, unpriced_requests: 1 });
       console.error("OpenAI editorial image generation failed", { status: response.status, requestId: response.headers.get("x-request-id") });
       if (response.status === 429) throw new HttpError(429, "A OpenAI atingiu um limite de uso. Confira os limites do projeto e tente mais tarde.");
       if (response.status === 401 || response.status === 403) throw new HttpError(502, "A OpenAI recusou a chave ou a conta não está habilitada para gerar imagens.");
@@ -117,6 +122,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const payload: unknown = await response.json().catch(() => null);
+    generationCost = imageResponseCost(payload, process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL);
     const encoded = payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
       ? ((payload as { data: unknown[] }).data[0] as { b64_json?: unknown } | undefined)?.b64_json
       : null;
@@ -144,6 +150,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       editorialError(attachError);
     }
 
-    return NextResponse.json({ id: assetId, file_name: fileName, revision: input.revision + 1 }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return apiError(error); }
+    return NextResponse.json({ id: assetId, file_name: fileName, revision: input.revision + 1, generation_cost: generationCost }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return generationApiError(error, generationCost); }
 }

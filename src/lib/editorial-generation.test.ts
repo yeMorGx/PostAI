@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildGeneratedDraft, extractMarkdownSources, generationInstructions } from "./editorial-generation";
+import { describe, expect, it, vi } from "vitest";
+import { buildGeneratedDraft, buildGeneratedDraftWithRepair, buildGenerationRepairRequest, extractMarkdownSources, generationInstructions } from "./editorial-generation";
 import { buildImageGenerationPrompt } from "./editorial-image-generation";
 
 const sources = Array.from({ length: 4 }, (_, index) => ({
@@ -30,6 +30,39 @@ function articleOutput() {
 }
 
 describe("geração editorial alinhada ao manual Piersec", () => {
+  it("corrige a descrição SEO curta sem gerar novamente o artigo completo", async () => {
+    const invalid = { ...articleOutput(), meta_description: "Descrição curta retornada pela IA." };
+    const repair = vi.fn(async (value: unknown, feedback: string) => {
+      const request = buildGenerationRepairRequest("article", { instructions: "manual oficial", tools: [{ type: "web_search" }], tool_choice: "required", max_tool_calls: 4 }, context, value, feedback);
+      expect(feedback).toContain("entre 150 e 160 caracteres");
+      expect(request.metadataOnly).toBe(true);
+      expect(request.body).not.toHaveProperty("tools");
+      expect(request.body).not.toHaveProperty("tool_choice");
+      expect(request.body).not.toHaveProperty("max_tool_calls");
+      expect(request.body.max_output_tokens).toBe(1000);
+      expect(JSON.parse(String(request.body.input)).article).toBe(invalid.article);
+      return { ...invalid, meta_description: articleOutput().meta_description };
+    });
+    const draft = await buildGeneratedDraftWithRepair("article", invalid, context, repair);
+    expect(repair).toHaveBeenCalledTimes(1);
+    expect(draft.body).toContain(invalid.article);
+    expect(draft.body).toContain(articleOutput().meta_description);
+    expect(draft.sources).toEqual(sources);
+  });
+
+  it("não faz correções pagas quando a primeira saída está válida", async () => {
+    const repair = vi.fn();
+    await buildGeneratedDraftWithRepair("article", articleOutput(), context, repair);
+    expect(repair).not.toHaveBeenCalled();
+  });
+
+  it("limita a correção a uma tentativa e apresenta uma mensagem legível se ela falhar", async () => {
+    const invalid = { ...articleOutput(), meta_description: "Descrição curta." };
+    const repair = vi.fn().mockResolvedValue(invalid);
+    await expect(buildGeneratedDraftWithRepair("article", invalid, context, repair)).rejects.toThrow(/correção automática.*descrição SEO/u);
+    expect(repair).toHaveBeenCalledTimes(1);
+  });
+
   it("preserva dados, validade, lacunas e lição no bloco para a base", () => {
     const draft = buildGeneratedDraft("article", articleOutput(), context);
     expect(draft.content_type).toBe("article");
