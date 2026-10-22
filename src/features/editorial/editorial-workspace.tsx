@@ -101,11 +101,11 @@ export function EditorialWorkspace({ mode, initialData, role, initialChannel = "
         {approvedBriefingNeedsArticle ? <Notice status="accent">O briefing do artigo foi aprovado. Redija e aprove o artigo antes de gerar os três derivados e concluir a revisão das quatro peças.</Notice> : packageFinalized ? <Notice status="success">Pacote confirmado e agendado. A publicação nas plataformas continua manual.</Notice> : hasRequiredCyclePosts && <Notice status="accent">Envie cada etapa para revisão e aprove as quatro peças individualmente. Depois, confirme o pacote para agendar. A publicação nas plataformas é manual.</Notice>}
         <div className="editorial-cycle-layout">
           <Card className="editorial-post-list"><Card.Header><Card.Title>Peças da semana</Card.Title><Card.Description>{posts.filter((post) => post.status === "scheduled").length} agendadas de {posts.length}</Card.Description></Card.Header><Card.Content className="editorial-post-list__items">
-            {posts.map((post) => <Button key={post.id} variant={activePost?.id === post.id ? "secondary" : "ghost"} className="editorial-post-picker" onPress={() => { setSelectedPostId(post.id); setChannel(post.channel); }}>
+            {posts.map((post) => <Button key={post.id} variant={activePost?.id === post.id ? "secondary" : "ghost"} className="editorial-post-picker" isDisabled={pending} onPress={() => { setSelectedPostId(post.id); setChannel(post.channel); }}>
               <span className="editorial-post-picker__copy"><strong>{channelLabels[post.channel]}</strong><span>{post.title}</span><small>{formatScheduled(post.planned_for)}</small></span><StatusChip post={post}/>
             </Button>)}
           </Card.Content></Card>
-          {activePost && <PostComposer key={`${activePost.id}:${activePost.revision}:${activePost.status}:${activePost.planned_for ?? ""}:${activePost.review_note}`} post={activePost} cycleTheme={activeCycle.theme} hasApprovedArticle={hasApprovedArticle} assets={data.assets.filter((asset) => asset.post_id === activePost.id)} canEdit={canEdit} canApprove={canApprove} pending={pending} onPending={setPending} onNotice={setNotice} onError={setError} refresh={state.refresh} mutate={state.mutate}/>}
+          {activePost && <PostComposer key={activePost.id} post={activePost} cycleTheme={activeCycle.theme} hasApprovedArticle={hasApprovedArticle} assets={data.assets.filter((asset) => asset.post_id === activePost.id)} canEdit={canEdit} canApprove={canApprove} pending={pending} onPending={setPending} onNotice={setNotice} onError={setError} refresh={state.refresh} mutate={state.mutate}/>}
         </div>
       </> : <Card><Card.Content><p className="editorial-muted">Crie a primeira semana para começar os rascunhos e horários.</p></Card.Content></Card>}
     </>}
@@ -156,6 +156,7 @@ function Overview({ data, role }: { data: EditorialData; role: Role }) {
 function Stat({ value, label, note }: { value: number; label: string; note: string }) { return <Card className="editorial-stat"><Card.Content><p className="editorial-stat__value">{value}</p><p className="editorial-stat__label">{label}</p><p className="editorial-muted">{note}</p></Card.Content></Card>; }
 
 type Draft = { revision: number; title: string; body: string; hashtags: string; slides: CarouselSlide[]; planned_for: string };
+type CarouselImageTask = { slides: CarouselSlide[]; revision: number; slideIndexes: number[] };
 function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, canApprove, pending, onPending, onNotice, onError, refresh, mutate }: { post: EditorialPost; cycleTheme: string; hasApprovedArticle: boolean; assets: EditorialAsset[]; canEdit: boolean; canApprove: boolean; pending: boolean; onPending: (value: boolean) => void; onNotice: (value: string) => void; onError: (value: string) => void; refresh: () => Promise<unknown>; mutate: ReturnType<typeof useEditorial>["mutate"] }) {
   const [draft, setDraft] = useState<Draft>(() => draftFromPost(post));
   const [generationDirection, setGenerationDirection] = useState("");
@@ -165,9 +166,17 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const [generatedRevision, setGeneratedRevision] = useState<number | null>(null);
   const [generatedStatus, setGeneratedStatus] = useState<EditorialPost["status"] | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [generatingImageIndex, setGeneratingImageIndex] = useState<number | null>(null);
+  const [generationProgress, setGenerationProgress] = useState("");
+  const [carouselImageRetry, setCarouselImageRetry] = useState<CarouselImageTask | null>(() => {
+    if (post.channel !== "carrossel") return null;
+    const attached = new Set(assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
+    const photoIndexes = post.slides.flatMap((slide, index) => slide.visual_type === "photo" ? [index] : []);
+    const slideIndexes = photoIndexes.filter((index) => !attached.has(`slide-${String(index + 1).padStart(2, "0")}.webp`));
+    return slideIndexes.length ? { slides: post.slides, revision: post.revision, slideIndexes } : null;
+  });
   const [reviewNote, setReviewNote] = useState(post.review_note);
   const [publishUrl, setPublishUrl] = useState(post.publication_url ?? "");
+  const [syncedRevision, setSyncedRevision] = useState(post.revision);
   const uploadRef = useRef<HTMLInputElement>(null);
   const dirty = draft.title !== post.title || draft.body !== post.body || draft.hashtags !== post.hashtags || JSON.stringify(draft.slides) !== JSON.stringify(post.slides) || toScheduledIso(draft.planned_for) !== post.planned_for;
   const assetsInPosition = [...assets].sort((a, b) => a.position - b.position);
@@ -177,25 +186,139 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const isApprovedArticle = post.channel === "blog" && post.status === "approved" && post.approved_revision === post.revision && !isPiersecBriefing(post.body);
   const canGenerate = post.channel !== "lkart" && !dirty && (isBriefingDraft || isApprovedBriefing || (post.channel !== "blog" && post.status === "draft" && hasApprovedArticle));
 
+  if (syncedRevision !== post.revision) {
+    setSyncedRevision(post.revision);
+    setDraft(draftFromPost(post));
+    setGeneratedDraft(null);
+    setGeneratedRevision(null);
+    setGeneratedStatus(null);
+    setReviewNote(post.review_note);
+    setPublishUrl(post.publication_url ?? "");
+    setCarouselImageRetry((current) => current && JSON.stringify(current.slides) === JSON.stringify(post.slides)
+      ? { ...current, revision: post.revision }
+      : null);
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); onError(""); onNotice(""); onPending(true);
     try {
-      await mutate.mutateAsync({ url: `/api/editorial/posts/${post.id}`, method: "PATCH", body: { ...draft, planned_for: toScheduledIso(draft.planned_for) } });
+      await persistDraft(draft);
       onNotice("Rascunho salvo. A aprovação anterior é removida sempre que o conteúdo muda.");
     } catch (cause) { onError(cause instanceof Error ? cause.message : "Não foi possível salvar a peça."); }
     finally { onPending(false); }
   }
 
+  async function persistDraft(values: Draft) {
+    return await mutate.mutateAsync({ url: `/api/editorial/posts/${post.id}`, method: "PATCH", body: { ...values, planned_for: toScheduledIso(values.planned_for) } }) as EditorialPost;
+  }
+
   async function generateDraft() {
-    setGeneratedDraft(null); setGeneratedRevision(null); setGeneratedStatus(null); onError(""); onNotice(""); setGenerating(true);
+    setGeneratedDraft(null); setGeneratedRevision(null); setGeneratedStatus(null); onError(""); onNotice(""); setGenerating(true); onPending(true);
     try {
+      setGenerationProgress(post.channel === "carrossel" ? "Gerando o texto e as direções visuais…" : "Aguardando a resposta da OpenAI…");
       const result = await fetchJson<GeneratedDraft>(`/api/editorial/posts/${post.id}/generate`, {
         method: "POST",
         body: JSON.stringify({ revision: post.revision, working_title: draft.title, direction: generationDirection, knowledge_base_context: knowledgeBaseContext, newsletter_conversation: newsletterConversation }),
       });
+      if (post.channel === "carrossel" && result.content_type === "carousel") {
+        setGenerationProgress("Salvando o carrossel para revisão…");
+        setCarouselImageRetry(null);
+        const saved = await persistDraft({ ...draft, title: result.title, body: result.body, hashtags: result.hashtags, slides: result.slides });
+        setDraft(draftFromPost(saved));
+        const photoIndexes = saved.slides.flatMap((slide, index) => slide.visual_type === "photo" ? [index] : []);
+        if (!photoIndexes.length) {
+          await refresh();
+          onNotice("Carrossel gerado e salvo para revisão. O manual definiu lâminas gráficas, então não há fotos para gerar. Nada foi publicado.");
+          return;
+        }
+        await generateCarouselImages({ slides: saved.slides, revision: saved.revision, slideIndexes: photoIndexes });
+        return;
+      }
       setGeneratedDraft(result); setGeneratedRevision(post.revision); setGeneratedStatus(post.status);
     } catch (cause) { onError(cause instanceof Error ? cause.message : "Não foi possível gerar a prévia."); }
-    finally { setGenerating(false); }
+    finally { setGenerating(false); setGenerationProgress(""); onPending(false); }
+  }
+
+  async function generateCarouselImages(task: CarouselImageTask) {
+    let revision = task.revision;
+    let completed = 0;
+    let existing = 0;
+    let remaining = task.slideIndexes;
+    setGenerating(true); onPending(true); setCarouselImageRetry(null); onError(""); onNotice("");
+    try {
+      const latest = await fetchJson<EditorialData>("/api/editorial");
+      const currentPost = latest.posts.find((item) => item.id === post.id);
+      if (!currentPost || JSON.stringify(currentPost.slides) !== JSON.stringify(task.slides)) {
+        await refresh();
+        onError("O carrossel mudou antes da geração das fotos. Atualize a peça e gere novamente para manter texto e imagens alinhados.");
+        return;
+      }
+      revision = currentPost.revision;
+      const fileName = (index: number) => `slide-${String(index + 1).padStart(2, "0")}.webp`;
+      const existingNames = new Set(latest.assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
+      const missing = task.slideIndexes.filter((index) => !existingNames.has(fileName(index)));
+      existing = task.slideIndexes.length - missing.length;
+      const capacity = Math.max(0, 10 - latest.assets.filter((asset) => asset.post_id === post.id).length);
+      const toGenerate = missing.slice(0, capacity);
+
+      if (!toGenerate.length && missing.length) {
+        remaining = missing;
+        setCarouselImageRetry({ slides: task.slides, revision, slideIndexes: remaining });
+        setDraft((current) => ({ ...current, revision }));
+        await refresh();
+        onError("O texto está salvo, mas o carrossel já atingiu o limite de dez imagens. Remova uma imagem e retome a geração das fotos pendentes.");
+        return;
+      }
+
+      for (const [position, index] of toGenerate.entries()) {
+        setGenerationProgress(`Gerando foto ${position + 1} de ${toGenerate.length} · lâmina ${index + 1}…`);
+        const result = await fetchJson<{ revision: number }>(`/api/editorial/posts/${post.id}/generate-image`, {
+          method: "POST",
+          body: JSON.stringify({ revision, slide_index: index }),
+        });
+        revision = result.revision;
+        completed += 1;
+      }
+
+      const updated = await fetchJson<EditorialData>("/api/editorial");
+      const updatedPost = updated.posts.find((item) => item.id === post.id);
+      const attachedNames = new Set(updated.assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
+      remaining = task.slideIndexes.filter((index) => !attachedNames.has(fileName(index)));
+      revision = updatedPost?.revision ?? revision;
+      setDraft((current) => ({ ...current, revision }));
+      await refresh();
+
+      if (remaining.length) {
+        setCarouselImageRetry({ slides: task.slides, revision, slideIndexes: remaining });
+        onError(`O texto foi salvo e ${completed} foto(s) foram anexadas. ${remaining.length} foto(s) ficaram pendentes porque o carrossel atingiu o limite de dez imagens. Remova uma imagem e retome a geração.`);
+        return;
+      }
+
+      setCarouselImageRetry(null);
+      onNotice(`Carrossel completo gerado e salvo: texto e ${completed} foto(s) criada(s)${existing ? `; ${existing} imagem(ns) existente(s) foram preservadas` : ""}. O rascunho segue para revisão humana; nada foi publicado.`);
+    } catch (cause) {
+      let latestRevision = revision;
+      try {
+        const latest = await fetchJson<EditorialData>("/api/editorial");
+        const currentPost = latest.posts.find((item) => item.id === post.id);
+        if (currentPost && JSON.stringify(currentPost.slides) === JSON.stringify(task.slides)) {
+          latestRevision = currentPost.revision;
+          const attachedNames = new Set(latest.assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
+          remaining = task.slideIndexes.filter((index) => !attachedNames.has(`slide-${String(index + 1).padStart(2, "0")}.webp`));
+        }
+      } catch { remaining = task.slideIndexes; }
+      setDraft((current) => ({ ...current, revision: latestRevision }));
+      if (remaining.length) setCarouselImageRetry({ slides: task.slides, revision: latestRevision, slideIndexes: remaining });
+      await refresh();
+      const detail = cause instanceof Error ? cause.message : "Não foi possível concluir a geração das fotos.";
+      onError(`O texto está salvo${completed ? ` e ${completed} foto(s) foram anexadas` : ""}. ${remaining.length ? `${remaining.length} foto(s) continuam pendentes. Use “Retomar geração das fotos”.` : "Confira as imagens anexadas."} ${detail}`);
+    } finally {
+      setGenerationProgress(""); setGenerating(false); onPending(false);
+    }
+  }
+
+  async function resumeCarouselImages() {
+    if (carouselImageRetry) await generateCarouselImages(carouselImageRetry);
   }
 
   function applyGeneratedDraft() {
@@ -229,20 +352,6 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     finally { onPending(false); }
   }
 
-  async function generateSlideImage(index: number) {
-    onError(""); onNotice(""); onPending(true); setGeneratingImageIndex(index);
-    try {
-      await fetchJson<unknown>(`/api/editorial/posts/${post.id}/generate-image`, {
-        method: "POST",
-        body: JSON.stringify({ revision: post.revision, slide_index: index }),
-      });
-      await refresh();
-      onNotice(`Imagem da lâmina ${index + 1} gerada e anexada como base sem texto. A revisão anterior foi invalidada e a peça precisa ser revisada novamente.`);
-    } catch (cause) {
-      onError(cause instanceof Error ? cause.message : "Não foi possível gerar a imagem.");
-    } finally { setGeneratingImageIndex(null); onPending(false); }
-  }
-
   async function removeAsset(asset: EditorialAsset) {
     onError(""); onNotice(""); onPending(true);
     try {
@@ -273,12 +382,13 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     {post.publication_url && <p className="editorial-published-link"><a href={post.publication_url} target="_blank" rel="noreferrer">Abrir publicação registrada</a></p>}
     {canEdit && post.status !== "published" ? <Form className="editorial-form" onSubmit={(event) => void save(event)}>
       {canGenerate && <section className="editorial-ai" aria-labelledby="editorial-ai-title">
-        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing aprovado" : "Peça derivada do artigo aprovado"}</h3><p className="editorial-muted">{isBriefingDraft ? "A busca usa fontes primárias. O briefing precisa de aprovação humana antes da redação do artigo." : isApprovedBriefing ? "A redação usa somente o briefing aprovado. Salvar a nova versão remove a aprovação anterior." : "A geração usa o artigo de blog aprovado nesta semana e preserva as fontes dele."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending || dirty || (isBriefingDraft && knowledgeBaseContext.trim().length < 20) || (post.channel === "news" && newsletterConversation.trim().length < 20)} onPress={() => void generateDraft()}>{generating ? "Pesquisando e redigindo…" : isBriefingDraft ? "Pesquisar e gerar briefing" : isApprovedBriefing ? "Redigir artigo" : "Gerar prévia"}</Button></div>
-        <p className="editorial-muted">Tema: {cycleTheme}. A prévia não salva nem publica conteúdo. A revisão e a aprovação continuam com a equipe.</p>
-        {isBriefingDraft && <TextField value={knowledgeBaseContext} onChange={setKnowledgeBaseContext} isRequired><Label>Base Piersec consultada</Label><TextArea rows={4} maxLength={12000} placeholder="Informe os nomes das páginas da rota consultada e cole uma síntese dos conceitos, fontes, validade e ressalvas relevantes. Se não houver material sobre o tema, registre a rota verificada e que a base não tinha conteúdo pertinente."/><p className="editorial-muted">Não inclua nomes, dados de clientes, leads ou informações confidenciais.</p></TextField>}
-        {post.channel === "news" && <TextField value={newsletterConversation} onChange={setNewsletterConversation} isRequired><Label>Conversa que a operação quer abrir</Label><TextArea rows={2} maxLength={500} placeholder="Ex.: convidar o leitor a conversar sobre avaliação de maturidade, sem prometer diagnóstico."/></TextField>}
-        <TextField value={generationDirection} onChange={setGenerationDirection}><Label>Orientação extra (opcional)</Label><TextArea rows={2} maxLength={1000} placeholder="Ex.: priorize um impacto de negócio específico para gestores de TI"/></TextField>
-        {generating && <p className="editorial-muted" role="status" aria-live="polite">Aguardando a resposta da OpenAI…</p>}
+        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing aprovado" : "Peça derivada do artigo aprovado"}</h3><p className="editorial-muted">{isBriefingDraft ? "A busca usa fontes primárias. O briefing precisa de aprovação humana antes da redação do artigo." : isApprovedBriefing ? "A redação usa somente o briefing aprovado. Salvar a nova versão remove a aprovação anterior." : "A geração usa o artigo de blog aprovado nesta semana e preserva as fontes dele."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending || dirty || (isBriefingDraft && knowledgeBaseContext.trim().length < 20) || (post.channel === "news" && newsletterConversation.trim().length < 20)} onPress={() => void generateDraft()}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Pesquisando e redigindo…" : post.channel === "carrossel" ? "Gerar carrossel completo" : isBriefingDraft ? "Pesquisar e gerar briefing" : isApprovedBriefing ? "Redigir artigo" : "Gerar prévia"}</Button></div>
+        <p className="editorial-muted">Tema: {cycleTheme}. {post.channel === "carrossel" ? "Uma ação gera o texto, salva o rascunho e cria as fotos indicadas pelo manual. Nada é publicado; a revisão e a aprovação continuam com a equipe." : "A prévia não salva nem publica conteúdo. A revisão e a aprovação continuam com a equipe."}</p>
+        {isBriefingDraft && <TextField value={knowledgeBaseContext} onChange={setKnowledgeBaseContext} isReadOnly={generating} isRequired><Label>Base Piersec consultada</Label><TextArea rows={4} maxLength={12000} placeholder="Informe os nomes das páginas da rota consultada e cole uma síntese dos conceitos, fontes, validade e ressalvas relevantes. Se não houver material sobre o tema, registre a rota verificada e que a base não tinha conteúdo pertinente."/><p className="editorial-muted">Não inclua nomes, dados de clientes, leads ou informações confidenciais.</p></TextField>}
+        {post.channel === "news" && <TextField value={newsletterConversation} onChange={setNewsletterConversation} isReadOnly={generating} isRequired><Label>Conversa que a operação quer abrir</Label><TextArea rows={2} maxLength={500} placeholder="Ex.: convidar o leitor a conversar sobre avaliação de maturidade, sem prometer diagnóstico."/></TextField>}
+        <TextField value={generationDirection} onChange={setGenerationDirection} isReadOnly={generating}><Label>Orientação extra (opcional)</Label><TextArea rows={2} maxLength={1000} placeholder="Ex.: priorize um impacto de negócio específico para gestores de TI"/></TextField>
+        {generating && <p className="editorial-muted" role="status" aria-live="polite">{generationProgress || "Aguardando a resposta da OpenAI…"}</p>}
+        {carouselImageRetry && post.channel === "carrossel" && <div className="editorial-ai__actions"><p className="editorial-muted" role="status">O texto já está salvo. {carouselImageRetry.slideIndexes.length} foto(s) aguardam geração.</p><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending || dirty} onPress={() => void resumeCarouselImages()}>{generating ? "Retomando fotos…" : "Retomar geração das fotos"}</Button></div>}
         {generatedDraft && generatedRevision === post.revision && <div className="editorial-ai__preview" role="region" aria-label="Prévia do conteúdo gerado" aria-live="polite">
           <div><p className="editorial-muted">Prévia para revisar · {generatedDraft.content_type === "briefing" ? "briefing" : generatedDraft.content_type === "article" ? "artigo" : generatedDraft.content_type === "newsletter" ? "newsletter" : generatedDraft.content_type === "linkedin_post" ? "LinkedIn" : "carrossel"}</p><h4>{generatedDraft.title}</h4></div>
           <p className="editorial-ai__body">{generatedDraft.body}</p>
@@ -294,31 +404,30 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
       {canEdit && post.channel !== "blog" && post.channel !== "lkart" && post.status === "draft" && !hasApprovedArticle && <Notice status="accent">A geração deste derivado será liberada depois que o artigo de blog desta semana estiver aprovado.</Notice>}
       {isApprovedArticle && <Notice status="accent">Este artigo já está aprovado. As peças derivadas podem usar esta versão como fonte.</Notice>}
       {isApprovedBriefing && <Notice status="accent">Briefing aprovado. Redija o artigo antes de agendar ou publicar esta peça.</Notice>}
-      <TextField value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} isRequired><Label>Título</Label><Input minLength={3} maxLength={180}/></TextField>
-      <TextField value={draft.body} onChange={(body) => setDraft((current) => ({ ...current, body }))}><Label>Texto da publicação</Label><TextArea rows={9} maxLength={30000} placeholder="Escreva o conteúdo. Para enviar à aprovação, o texto precisa ter ao menos 20 caracteres."/></TextField>
-      <TextField value={draft.hashtags} onChange={(hashtags) => setDraft((current) => ({ ...current, hashtags }))}><Label>Hashtags</Label><TextArea rows={2} maxLength={1000} placeholder="#ciberseguranca #Piersec"/></TextField>
-      <TextField value={draft.planned_for} onChange={(planned_for) => setDraft((current) => ({ ...current, planned_for }))}><Label>Data e hora de publicação · São Paulo</Label><Input type="datetime-local"/></TextField>
-      {post.channel === "carrossel" && <section className="editorial-slides"><div className="editorial-section-title"><div><h3>Lâminas do carrossel</h3><p className="editorial-muted">A estrutura Piersec usa capa, quatro a sete lâminas de conteúdo e um slide final.</p></div><Button variant="secondary" isDisabled={draft.slides.length >= 9} onPress={() => setDraft((current) => ({ ...current, slides: [...current.slides, { title: "", text: "", role: "content", visual_type: "graphic", visual_direction: "", source_attribution: "" }] }))}>Adicionar lâmina</Button></div>
+      <TextField value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} isReadOnly={generating} isRequired><Label>Título</Label><Input minLength={3} maxLength={180}/></TextField>
+      <TextField value={draft.body} onChange={(body) => setDraft((current) => ({ ...current, body }))} isReadOnly={generating}><Label>Texto da publicação</Label><TextArea rows={9} maxLength={30000} placeholder="Escreva o conteúdo. Para enviar à aprovação, o texto precisa ter ao menos 20 caracteres."/></TextField>
+      <TextField value={draft.hashtags} onChange={(hashtags) => setDraft((current) => ({ ...current, hashtags }))} isReadOnly={generating}><Label>Hashtags</Label><TextArea rows={2} maxLength={1000} placeholder="#ciberseguranca #Piersec"/></TextField>
+      <TextField value={draft.planned_for} onChange={(planned_for) => setDraft((current) => ({ ...current, planned_for }))} isReadOnly={generating}><Label>Data e hora de publicação · São Paulo</Label><Input type="datetime-local"/></TextField>
+      {post.channel === "carrossel" && <section className="editorial-slides"><div className="editorial-section-title"><div><h3>Lâminas do carrossel</h3><p className="editorial-muted">A estrutura Piersec usa capa, quatro a sete lâminas de conteúdo e um slide final.</p></div><Button variant="secondary" isDisabled={generating || draft.slides.length >= 9} onPress={() => setDraft((current) => ({ ...current, slides: [...current.slides, { title: "", text: "", role: "content", visual_type: "graphic", visual_direction: "", source_attribution: "" }] }))}>Adicionar lâmina</Button></div>
         {draft.slides.map((slide, index) => {
           const generatedAsset = generatedAssetForSlide(index);
           return <div className="editorial-slide-fields" key={index}>
             <p className="editorial-muted">Lâmina {index + 1}{slide.role ? ` · ${slide.role === "cover" ? "capa" : slide.role === "final" ? "final" : "conteúdo"}` : ""}</p>
-            <Choice value={slide.role ?? "content"} onChange={(value) => updateSlide(index, "role", value)} label={`Função da lâmina ${index + 1}`} options={[{ id: "cover", label: "Capa" }, { id: "content", label: "Conteúdo" }, { id: "final", label: "Final" }]}/>
-            <TextField value={slide.title} onChange={(value) => updateSlide(index, "title", value)}><Label>Título</Label><Input maxLength={180}/></TextField>
-            <TextField value={slide.text} onChange={(value) => updateSlide(index, "text", value)}><Label>Texto</Label><TextArea rows={2} maxLength={1200}/></TextField>
-            <TextField value={slide.source_attribution ?? ""} onChange={(value) => updateSlide(index, "source_attribution", value)}><Label>Fonte de apoio (nome exato da fonte do artigo)</Label><Input maxLength={240}/></TextField>
-            <Choice value={slide.visual_type ?? "graphic"} onChange={(value) => updateSlide(index, "visual_type", value)} label={`Tipo visual da lâmina ${index + 1}`} options={[{ id: "photo", label: "Foto" }, { id: "graphic", label: "Gráfico" }]}/>
-            <TextField value={slide.visual_direction ?? ""} onChange={(value) => updateSlide(index, "visual_direction", value)}><Label>Direção visual</Label><TextArea rows={2} maxLength={600}/></TextField>
+            <Choice value={slide.role ?? "content"} onChange={(value) => updateSlide(index, "role", value)} disabled={generating} label={`Função da lâmina ${index + 1}`} options={[{ id: "cover", label: "Capa" }, { id: "content", label: "Conteúdo" }, { id: "final", label: "Final" }]}/>
+            <TextField value={slide.title} onChange={(value) => updateSlide(index, "title", value)} isReadOnly={generating}><Label>Título</Label><Input maxLength={180}/></TextField>
+            <TextField value={slide.text} onChange={(value) => updateSlide(index, "text", value)} isReadOnly={generating}><Label>Texto</Label><TextArea rows={2} maxLength={1200}/></TextField>
+            <TextField value={slide.source_attribution ?? ""} onChange={(value) => updateSlide(index, "source_attribution", value)} isReadOnly={generating}><Label>Fonte de apoio (nome exato da fonte do artigo)</Label><Input maxLength={240}/></TextField>
+            <Choice value={slide.visual_type ?? "graphic"} onChange={(value) => updateSlide(index, "visual_type", value)} disabled={generating} label={`Tipo visual da lâmina ${index + 1}`} options={[{ id: "photo", label: "Foto" }, { id: "graphic", label: "Gráfico" }]}/>
+            <TextField value={slide.visual_direction ?? ""} onChange={(value) => updateSlide(index, "visual_direction", value)} isReadOnly={generating}><Label>Direção visual</Label><TextArea rows={2} maxLength={600}/></TextField>
             {slide.visual_type === "photo" && <div className="editorial-image-generation">
-              <p className="editorial-muted">A foto é gerada sem texto; a direção precisa estar em inglês, como determina o manual.</p>
-              {generatedAsset ? <p className="editorial-muted" role="status">Imagem anexada. Remova-a na lista abaixo para gerar outra versão.</p> : <Button type="button" variant="secondary" isPending={generatingImageIndex === index} isDisabled={dirty || pending || generatingImageIndex !== null || !hasApprovedArticle || assets.length >= 10 || !slide.visual_direction?.trim()} onPress={() => void generateSlideImage(index)}>{generatingImageIndex === index ? "Gerando foto…" : `Gerar foto da lâmina ${index + 1}`}</Button>}
-              {generatingImageIndex === index && <p className="editorial-muted" role="status" aria-live="polite">A OpenAI está criando a base fotográfica. Isso pode levar alguns minutos.</p>}
+              <p className="editorial-muted">A base fotográfica sem texto é gerada junto com o carrossel completo; a direção precisa estar em inglês, como determina o manual.</p>
+              {generatedAsset && <p className="editorial-muted" role="status">Imagem anexada. Para manter texto e imagem sincronizados, a geração acontece pelo fluxo completo do carrossel.</p>}
             </div>}
-            {draft.slides.length > 1 && <Button variant="ghost" onPress={() => setDraft((current) => ({ ...current, slides: current.slides.filter((_, slideIndex) => slideIndex !== index) }))}>Remover lâmina</Button>}
+            {draft.slides.length > 1 && <Button variant="ghost" isDisabled={generating} onPress={() => setDraft((current) => ({ ...current, slides: current.slides.filter((_, slideIndex) => slideIndex !== index) }))}>Remover lâmina</Button>}
           </div>;
         })}
       </section>}
-      <div className="editorial-actions"><Button type="submit" variant="primary" isPending={pending} isDisabled={!dirty}>{pending ? "Salvando…" : "Salvar rascunho"}</Button>{dirty && <span className="editorial-muted">Salve as alterações antes de enviar a peça para revisão ou anexar imagens.</span>}</div>
+      <div className="editorial-actions"><Button type="submit" variant="primary" isPending={pending} isDisabled={generating || !dirty}>{pending ? "Salvando…" : "Salvar rascunho"}</Button>{dirty && <span className="editorial-muted">Salve as alterações antes de enviar a peça para revisão ou anexar imagens.</span>}</div>
     </Form> : <div className="editorial-readonly-copy"><h3>{post.title}</h3><p>{post.body || "Sem texto cadastrado."}</p>{post.hashtags && <p className="editorial-hashtags">{post.hashtags}</p>}</div>}
 
     {canSubmitReview && <div className="editorial-review-actions"><p className="editorial-muted">Envie esta etapa para aprovação humana. O conteúdo não será publicado automaticamente.</p><Button variant="secondary" isPending={pending} onPress={() => void transition("review")}>Enviar peça para aprovação</Button></div>}
