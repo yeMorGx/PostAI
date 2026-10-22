@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { imageType } from "@/lib/media-upload";
 import { buildImageGenerationPrompt } from "@/lib/editorial-image-generation";
 import { loadCarouselVisualRules, PiersecManualUnavailableError } from "@/lib/piersec-manual";
+import { loadPiersecKnowledgeContext, PiersecKnowledgeUnavailableError } from "@/lib/piersec-knowledge";
 import { uuidSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
@@ -39,13 +40,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (post.channel !== "carrossel") throw new HttpError(422, "A geração de imagem está disponível para lâminas de carrossel.");
     if (post.status === "published" || post.revision !== input.revision) throw new HttpError(409, "A peça foi alterada ou publicada. Atualize antes de gerar a imagem.");
 
-    const { data: article, error: articleError } = await supabase.from("editorial_posts")
-      .select("body,status,revision,approved_revision")
-      .eq("cycle_id", post.cycle_id).eq("workspace_id", workspace.id).eq("channel", "blog").maybeSingle();
-    if (articleError) editorialError(articleError);
-    if (!article || article.status !== "approved" || article.approved_revision !== article.revision || isPiersecBriefing(article.body)) {
+    const [articleResult, cycleResult] = await Promise.all([
+      supabase.from("editorial_posts")
+        .select("body,status,revision,approved_revision")
+        .eq("cycle_id", post.cycle_id).eq("workspace_id", workspace.id).eq("channel", "blog").maybeSingle(),
+      supabase.from("editorial_cycles")
+        .select("theme").eq("id", post.cycle_id).eq("workspace_id", workspace.id).maybeSingle(),
+    ]);
+    if (articleResult.error) editorialError(articleResult.error);
+    if (cycleResult.error) editorialError(cycleResult.error);
+    if (!articleResult.data || articleResult.data.status !== "approved" || articleResult.data.approved_revision !== articleResult.data.revision || isPiersecBriefing(articleResult.data.body)) {
       throw new HttpError(409, "Aprove o artigo do blog antes de gerar as imagens do carrossel.");
     }
+    if (!cycleResult.data) throw new HttpError(404, "Semana editorial não encontrada.");
 
     const slides = Array.isArray(post.slides) ? post.slides : [];
     const parsedSlide = slideSchema.safeParse(slides[input.slide_index]);
@@ -65,9 +72,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new HttpError(503, "A geração de imagem ainda não foi configurada. Adicione OPENAI_API_KEY às variáveis do servidor.");
     let visualRules: string;
-    try { visualRules = await loadCarouselVisualRules(); }
+    let knowledgeContext: string;
+    try {
+      [visualRules, knowledgeContext] = await Promise.all([
+        loadCarouselVisualRules(),
+        loadPiersecKnowledgeContext(cycleResult.data.theme, "carousel", 6000).then((result) => result.context),
+      ]);
+    }
     catch (cause) {
       if (cause instanceof PiersecManualUnavailableError) throw new HttpError(503, cause.message);
+      if (cause instanceof PiersecKnowledgeUnavailableError) throw new HttpError(503, cause.message);
       throw cause;
     }
 
@@ -78,7 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2.5-flare",
-          prompt: buildImageGenerationPrompt(visualRules, parsedSlide.data),
+          prompt: buildImageGenerationPrompt(visualRules, parsedSlide.data, knowledgeContext),
           size: "1088x1360",
           quality: "high",
           output_format: "webp",

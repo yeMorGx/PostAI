@@ -24,7 +24,6 @@ export const generationRequestSchema = z.object({
   revision: z.number().int().positive(),
   working_title: z.string().trim().max(180).default(""),
   direction: z.string().trim().max(1000).default(""),
-  knowledge_base_context: z.string().trim().max(12000).default(""),
   newsletter_conversation: z.string().trim().max(500).default(""),
 }).strict();
 export const BRIEFING_MARKER = "<!-- PIERSEC_BRIEFING_V1 -->";

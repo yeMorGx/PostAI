@@ -5,6 +5,7 @@ import { apiError, assertSameOrigin, HttpError, readJson } from "@/lib/http";
 import { editorialError } from "@/lib/editorial-server";
 import { buildGeneratedDraft, extractResponseText, extractWebSearchUrls, generationInstructions, outputFormat } from "@/lib/editorial-generation";
 import { loadEditorialManual, PiersecManualUnavailableError } from "@/lib/piersec-manual";
+import { loadPiersecKnowledgeContext, PiersecKnowledgeUnavailableError } from "@/lib/piersec-knowledge";
 import { uuidSchema } from "@/lib/schemas";
 
 export const maxDuration = 60;
@@ -42,9 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (post.channel === "blog") {
       if (post.status === "draft" && (!post.body.trim() || isPiersecBriefing(post.body))) {
-        if (input.knowledge_base_context.length < 20) throw new HttpError(422, "Leia o índice e a rota pertinente da base Piersec. Informe as páginas consultadas e a síntese relevante antes de pesquisar.");
         kind = "briefing";
-        knowledgeContext = input.knowledge_base_context;
       } else if (post.status === "approved" && post.approved_revision === post.revision && isPiersecBriefing(post.body)) {
         kind = "article";
         approvedBriefing = post.body;
@@ -67,6 +66,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new HttpError(503, "A geração ainda não foi configurada. Adicione OPENAI_API_KEY às variáveis do servidor.");
+    try {
+      knowledgeContext = (await loadPiersecKnowledgeContext(cycleResult.data.theme, kind)).context;
+    } catch (cause) {
+      if (cause instanceof PiersecKnowledgeUnavailableError) throw new HttpError(503, cause.message);
+      throw cause;
+    }
     let appUrl = process.env.APP_URL?.trim() ?? "";
     if (kind === "newsletter" && input.newsletter_conversation.length < 20) throw new HttpError(422, "Informe qual conversa a operação quer abrir com o leitor antes de gerar a newsletter.");
     if (kind === "newsletter") {
