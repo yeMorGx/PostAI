@@ -20,6 +20,7 @@ export const maxDuration = 180;
 const imageRequestSchema = z.object({
   revision: z.number().int().positive(),
   slide_index: z.number().int().min(0).max(8),
+  package_mode: z.boolean().default(false),
 }).strict();
 
 const slideSchema = z.object({
@@ -52,7 +53,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ]);
     if (articleResult.error) editorialError(articleResult.error);
     if (cycleResult.error) editorialError(cycleResult.error);
-    if (!articleResult.data || articleResult.data.status !== "approved" || articleResult.data.approved_revision !== articleResult.data.revision || isPiersecBriefing(articleResult.data.body)) {
+    const article = articleResult.data;
+    const approvedArticle = article?.status === "approved" && article.approved_revision === article.revision;
+    const packageDraftArticle = input.package_mode && article?.status === "draft" && Boolean(article.body.trim()) && !isPiersecBriefing(article.body);
+    if (!article || (!approvedArticle && !packageDraftArticle)) {
       throw new HttpError(409, "Aprove o artigo do blog antes de gerar as imagens do carrossel.");
     }
     if (!cycleResult.data) throw new HttpError(404, "Semana editorial não encontrada.");

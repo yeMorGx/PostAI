@@ -5,6 +5,7 @@ export const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-flare";
 export const IMAGE_SIZE = "1088x1360";
 export const IMAGE_QUALITY = "high";
 export const MAX_SEARCH_CALLS = 4;
+export const MAX_GENERATION_REPAIRS = 3;
 
 type TextRate = { input: number; cached: number; output: number };
 const textRates: Record<string, TextRate> = {
@@ -90,13 +91,14 @@ export function imageOutputTokens(model: string, width = 1088, height = 1360) {
 // UTF-8 bytes / 3 is a planning heuristic, not a tokenizer or a spending limit.
 function estimatedTokens(value: string) { return Math.ceil(new TextEncoder().encode(value).length / 3); }
 
-export function estimateGenerationCost(input: { model: string; prompt: string; maxOutputTokens: number; search: boolean; imageModel?: string; imagePrompt?: string; maxPhotos?: number }): GenerationEstimate {
+export function estimateGenerationCost(input: { model: string; prompt: string; maxOutputTokens: number; search: boolean; imageModel?: string; imagePrompt?: string; maxPhotos?: number; maxRepairs?: number }): GenerationEstimate {
   const rate = textRates[baseModel(input.model)];
   const promptTokens = estimatedTokens(input.prompt);
   const searchBudget = input.search ? MAX_SEARCH_CALLS : 0;
+  const repairCount = input.maxRepairs ?? 1;
   const text = rate ? {
     min: perMillion(promptTokens * 0.8, rate.input) + perMillion(input.maxOutputTokens * 0.35, rate.output) + (input.search ? 0.01 : 0),
-    max: perMillion((promptTokens * 1.3 + searchBudget * 8000) * 2 + input.maxOutputTokens + 1000, rate.input * 1.25) + perMillion(input.maxOutputTokens * 2, rate.output) + searchBudget * 0.01,
+    max: perMillion((promptTokens * 1.3 + searchBudget * 8000) * (repairCount + 1) + input.maxOutputTokens + 1000, rate.input * 1.25) + perMillion(input.maxOutputTokens * (repairCount + 1), rate.output) + searchBudget * 0.01,
   } : null;
   const imageRate = input.imageModel ? imageRates(input.imageModel) : null;
   const outputTokens = input.imageModel ? imageOutputTokens(input.imageModel) : null;

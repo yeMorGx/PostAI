@@ -5,6 +5,7 @@ const config: NextConfig = {
   outputFileTracingExcludes: {
     "/api/editorial/posts/*/generate": ["./docs/piersec/**/*.pdf"],
     "/api/editorial/posts/*/generate-image": ["./docs/piersec/**/*.pdf"],
+    "/api/editorial/cycles/*/estimate": ["./docs/piersec/**/*.pdf"],
   },
   outputFileTracingIncludes: {
     "/api/editorial/posts/*/generate": [
@@ -17,6 +18,15 @@ const config: NextConfig = {
       "./docs/piersec/piersec-guia-base-de-conhecimento/piersec-guia-base-de-conhecimento/modelos/instrucoes-para-agentes.md",
     ],
     "/api/editorial/posts/*/generate-image": [
+      "./docs/piersec/baseline_piersec/*.md",
+      "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/index.md",
+      "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/wiki/conceito/**/*.md",
+      "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/wiki/fontes/**/*.md",
+      "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/wiki/estrategia/**/*.md",
+      "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/wiki/acervo/**/*.md",
+      "./docs/piersec/piersec-guia-base-de-conhecimento/piersec-guia-base-de-conhecimento/modelos/instrucoes-para-agentes.md",
+    ],
+    "/api/editorial/cycles/*/estimate": [
       "./docs/piersec/baseline_piersec/*.md",
       "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/index.md",
       "./docs/piersec/piersec-base-ciberseguranca/piersec-base-ciberseguranca/wiki/conceito/**/*.md",

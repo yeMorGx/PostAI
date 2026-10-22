@@ -8,14 +8,14 @@ import { loadCarouselVisualRules, loadEditorialManual, PiersecManualUnavailableE
 import { loadPiersecKnowledgeContext, PiersecKnowledgeUnavailableError } from "@/lib/piersec-knowledge";
 import { uuidSchema } from "@/lib/schemas";
 import { buildImageGenerationPrompt } from "@/lib/editorial-image-generation";
-import { addGenerationCost, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, emptyGenerationCost, estimateGenerationCost, MAX_SEARCH_CALLS, textResponseCost } from "@/lib/generation-cost";
+import { addGenerationCost, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, emptyGenerationCost, estimateGenerationCost, MAX_GENERATION_REPAIRS, MAX_SEARCH_CALLS, textResponseCost } from "@/lib/generation-cost";
 import { generationApiError } from "@/lib/generation-cost-server";
 
 export const maxDuration = 180;
 
 type GenerationKind = "briefing" | "article" | "newsletter" | "linkedin_post" | "carousel";
 
-async function prepareGeneration(id: string, input: { revision: number; working_title: string }) {
+async function prepareGeneration(id: string, input: { revision: number; working_title: string; package_mode?: boolean }) {
     const { supabase, workspace } = await requireApiContext("edit");
     const { data: post, error: postError } = await supabase.from("editorial_posts")
       .select("id,cycle_id,channel,title,body,status,revision,approved_revision")
@@ -38,10 +38,13 @@ async function prepareGeneration(id: string, input: { revision: number; working_
     let knowledgeContext = "";
     let approvedBriefing = "";
     let approvedArticleBody = "";
-    let parentArticle: { revision: number; approved_revision: number | null; body: string } | null = null;
+    let parentArticle: { status: string; revision: number; approved_revision: number | null; body: string } | null = null;
 
     if (post.channel === "blog") {
-      if (post.status === "draft" && (!post.body.trim() || isPiersecBriefing(post.body))) {
+      if (input.package_mode && post.status === "draft" && isPiersecBriefing(post.body)) {
+        kind = "article";
+        approvedBriefing = post.body;
+      } else if (post.status === "draft" && !post.body.trim()) {
         kind = "briefing";
       } else if (post.status === "approved" && post.approved_revision === post.revision && isPiersecBriefing(post.body)) {
         kind = "article";
@@ -55,7 +58,9 @@ async function prepareGeneration(id: string, input: { revision: number; working_
         .select("body,status,revision,approved_revision")
         .eq("cycle_id", post.cycle_id).eq("workspace_id", workspace.id).eq("channel", "blog").maybeSingle();
       if (articleError) editorialError(articleError);
-      if (!article || article.status !== "approved" || article.approved_revision !== article.revision || isPiersecBriefing(article.body)) {
+      const approvedSource = article?.status === "approved" && article.approved_revision === article.revision;
+      const packageDraftSource = input.package_mode && article?.status === "draft" && Boolean(article.body.trim()) && !isPiersecBriefing(article.body);
+      if (!article || (!approvedSource && !packageDraftSource)) {
         throw new HttpError(409, "Aprove o artigo do blog nesta semana antes de gerar newsletter, LinkedIn ou carrossel.");
       }
       parentArticle = article;
@@ -85,8 +90,8 @@ async function prepareGeneration(id: string, input: { revision: number; working_
       current_date: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "long" }).format(new Date()),
       brand: brandResult.data ?? null,
       knowledge_base_context: knowledgeContext,
-      approved_briefing: approvedBriefing,
-      approved_article: approvedArticleBody,
+      briefing_reference: approvedBriefing,
+      article_reference: approvedArticleBody,
     };
     let manual: string;
     try { manual = await loadEditorialManual(kind); }
@@ -96,9 +101,9 @@ async function prepareGeneration(id: string, input: { revision: number; working_
     }
     const requestBody: Record<string, unknown> = {
       model: process.env.OPENAI_MODEL?.trim() || DEFAULT_TEXT_MODEL,
-      instructions: generationInstructions(kind, manual),
+      instructions: generationInstructions(kind, manual, input.package_mode),
       input: JSON.stringify(context),
-      max_output_tokens: kind === "article" || kind === "newsletter" ? 8000 : 6000,
+      max_output_tokens: kind === "article" ? 10000 : kind === "newsletter" ? 8000 : 6000,
       store: false,
       service_tier: "default",
       text: { format: outputFormat(kind) },
@@ -116,7 +121,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const id = uuidSchema.parse((await params).id);
     const query = request.nextUrl.searchParams;
-    const input = generationRequestSchema.parse({ revision: Number(query.get("revision")), working_title: query.get("working_title") ?? "" });
+    const input = generationRequestSchema.parse({ revision: Number(query.get("revision")), working_title: query.get("working_title") ?? "", package_mode: query.get("package_mode") === "true" });
     const { supabase, workspace, kind, context, requestBody } = await prepareGeneration(id, input);
     let imagePrompt: string | undefined;
     let maxPhotos = 0;
@@ -133,6 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     const estimate = estimateGenerationCost({
       model: String(requestBody.model), prompt: JSON.stringify(requestBody), maxOutputTokens: Number(requestBody.max_output_tokens), search: kind === "briefing",
+      maxRepairs: MAX_GENERATION_REPAIRS,
       ...(kind === "carousel" ? { imageModel: process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL, imagePrompt, maxPhotos } : {}),
     });
     return NextResponse.json(estimate, { headers: { "Cache-Control": "private, no-store" } });
@@ -196,8 +202,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }, async (invalidDraft, feedback) => {
         const repair = buildGenerationRepairRequest(kind, requestBody, context, invalidDraft, feedback);
         const repaired = (await requestGeneration(repair.body)).generated;
-        return repair.metadataOnly ? { ...(invalidDraft as Record<string, unknown>), meta_description: repaired && typeof repaired === "object" ? (repaired as Record<string, unknown>).meta_description : undefined } : repaired;
-      });
+        return repair.field ? { ...(invalidDraft as Record<string, unknown>), [repair.field]: repaired && typeof repaired === "object" ? (repaired as Record<string, unknown>)[repair.field] : undefined } : repaired;
+      }, MAX_GENERATION_REPAIRS);
     } catch (cause) {
       if (cause instanceof HttpError) throw cause;
       const message = cause instanceof Error ? cause.message : "A resposta não passou na revisão do formato Piersec.";
@@ -208,7 +214,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const [latestPostResult, latestParentResult] = await Promise.all([
       supabase.from("editorial_posts").select("status,revision,approved_revision,body").eq("id", id).eq("workspace_id", workspace.id).maybeSingle(),
-      parentArticle ? supabase.from("editorial_posts").select("status,revision,approved_revision").eq("cycle_id", post.cycle_id).eq("workspace_id", workspace.id).eq("channel", "blog").maybeSingle() : Promise.resolve({ data: null, error: null }),
+      parentArticle ? supabase.from("editorial_posts").select("status,revision,approved_revision,body").eq("cycle_id", post.cycle_id).eq("workspace_id", workspace.id).eq("channel", "blog").maybeSingle() : Promise.resolve({ data: null, error: null }),
     ]);
     if (latestPostResult.error) editorialError(latestPostResult.error);
     if (latestParentResult.error) editorialError(latestParentResult.error);
@@ -218,8 +224,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (parentArticle) {
       const latestParent = latestParentResult.data;
-      if (!latestParent || latestParent.status !== "approved" || latestParent.revision !== parentArticle.revision || latestParent.approved_revision !== parentArticle.approved_revision) {
-        throw new HttpError(409, "O artigo aprovado mudou enquanto o conteúdo era gerado. Atualize e tente novamente.");
+      if (!latestParent || latestParent.status !== parentArticle.status || latestParent.revision !== parentArticle.revision || latestParent.approved_revision !== parentArticle.approved_revision || latestParent.body !== parentArticle.body) {
+        throw new HttpError(409, "O artigo de referência mudou enquanto o conteúdo era gerado. Atualize e tente novamente.");
       }
     }
 

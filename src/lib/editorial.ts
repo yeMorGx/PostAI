@@ -23,6 +23,7 @@ export type EditorialPostInput = z.infer<typeof postSchema>;
 export const generationRequestSchema = z.object({
   revision: z.number().int().positive(),
   working_title: z.string().trim().max(180).default(""),
+  package_mode: z.boolean().optional(),
 }).strict();
 export const BRIEFING_MARKER = "<!-- PIERSEC_BRIEFING_V1 -->";
 export function isPiersecBriefing(value: string) { return value.trimStart().startsWith(BRIEFING_MARKER); }
