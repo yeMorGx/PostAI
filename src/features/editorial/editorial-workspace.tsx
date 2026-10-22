@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useRouter } from "next/navigation";
 import { AppLink, Choice, Notice } from "@/components/ui";
 import { can, type Role } from "@/lib/permissions";
-import { channelLabels, cycleChannels, formatScheduled, isPiersecBriefing, localDateTime, nextMonday, saoPauloDate, toScheduledIso, type BrandProfile, type CarouselSlide, type Channel, type EditorialAsset, type EditorialCycle, type EditorialData, type EditorialPost, type GeneratedDraft } from "@/lib/editorial";
+import { channelLabels, cycleChannels, formatScheduled, isPiersecBriefing, localDateTime, nextMonday, sameScheduledTime, saoPauloDate, toScheduledIso, type BrandProfile, type CarouselSlide, type Channel, type EditorialAsset, type EditorialCycle, type EditorialData, type EditorialPost, type GeneratedDraft } from "@/lib/editorial";
 import { fetchJson } from "@/lib/api-client";
 import { useEditorial } from "./use-editorial";
 import { CarouselMarquee } from "@/features/reference/carousel-marquee";
@@ -184,7 +184,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const [publishUrl, setPublishUrl] = useState(post.publication_url ?? "");
   const [syncedRevision, setSyncedRevision] = useState(post.revision);
   const uploadRef = useRef<HTMLInputElement>(null);
-  const dirty = draft.title !== post.title || draft.body !== post.body || draft.hashtags !== post.hashtags || JSON.stringify(draft.slides) !== JSON.stringify(post.slides) || toScheduledIso(draft.planned_for) !== post.planned_for;
+  const dirty = draft.title !== post.title || draft.body !== post.body || draft.hashtags !== post.hashtags || JSON.stringify(draft.slides) !== JSON.stringify(post.slides) || !sameScheduledTime(draft.planned_for, post.planned_for);
   const assetsInPosition = [...assets].sort((a, b) => a.position - b.position);
   const generatedAssetForSlide = (index: number) => assets.find((asset) => asset.file_name === `slide-${String(index + 1).padStart(2, "0")}.webp`);
   const isBriefingDraft = post.channel === "blog" && post.status === "draft" && (!post.body.trim() || isPiersecBriefing(post.body));

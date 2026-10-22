@@ -68,6 +68,12 @@ export function localDateTime(value: string | null) {
   return `${v("year")}-${v("month")}-${v("day")}T${v("hour")}:${v("minute")}`;
 }
 export function toScheduledIso(value: string) { return value ? new Date(`${value}:00-03:00`).toISOString() : null; }
+export function sameScheduledTime(value: string, scheduledAt: string | null) {
+  const normalized = toScheduledIso(value);
+  if (normalized === null || scheduledAt === null) return normalized === scheduledAt;
+  const normalizedTime = Date.parse(normalized);
+  return Number.isFinite(normalizedTime) && normalizedTime === Date.parse(scheduledAt);
+}
 export function formatScheduled(value: string | null) {
   return value ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem horário definido";
 }
