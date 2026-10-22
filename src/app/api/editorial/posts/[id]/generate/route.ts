@@ -4,6 +4,7 @@ import { channelLabels, generatedDraftSchema, generationRequestSchema, isPiersec
 import { apiError, assertSameOrigin, HttpError, readJson } from "@/lib/http";
 import { editorialError } from "@/lib/editorial-server";
 import { buildGeneratedDraft, extractResponseText, extractWebSearchUrls, generationInstructions, outputFormat } from "@/lib/editorial-generation";
+import { loadEditorialManual, PiersecManualUnavailableError } from "@/lib/piersec-manual";
 import { uuidSchema } from "@/lib/schemas";
 
 export const maxDuration = 60;
@@ -76,12 +77,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       } catch { throw new HttpError(503, "Configure APP_URL com o endereço HTTPS da aplicação para montar o HTML da newsletter com a marca."); }
     }
 
-    const channelGuidance: Record<Exclude<GenerationKind, "briefing" | "article">, string> = {
-      newsletter: "Siga o agente de newsletter do manual Piersec. Produza uma lente própria sobre o tema do artigo, sem resumir nem copiar frases. Estrutura: abertura contextual, diagnóstico, aplicação prática, conexão Piersec em no máximo um parágrafo e CTA consultivo. O HTML será montado pelo servidor com os contatos e cores oficiais.",
-      linkedin_post: "Siga o agente de LinkedIn do manual Piersec. Escolha um argumento do artigo, desenvolva somente esse argumento, com hook direto, três a cinco hashtags e fechamento sem venda.",
-      carousel: "Siga o agente de carrossel do manual Piersec. Gere texto exato para cada lâmina, direção visual por slide, prompts em inglês apenas para fotos, legenda e stories. Use exclusivamente fatos e fontes do artigo aprovado.",
-    };
-
     const context = {
       channel: post.channel === "blog" ? "Artigo no blog" : channelLabels[post.channel],
       weekly_theme: cycleResult.data.theme,
@@ -93,11 +88,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       knowledge_base_context: knowledgeContext,
       approved_briefing: approvedBriefing,
       approved_article: approvedArticleBody,
-      format_guidance: kind === "newsletter" || kind === "linkedin_post" || kind === "carousel" ? channelGuidance[kind] : "",
     };
+    let manual: string;
+    try { manual = await loadEditorialManual(kind); }
+    catch (cause) {
+      if (cause instanceof PiersecManualUnavailableError) throw new HttpError(503, cause.message);
+      throw cause;
+    }
     const requestBody: Record<string, unknown> = {
       model: process.env.OPENAI_MODEL?.trim() || "gpt-6-luna",
-      instructions: generationInstructions(kind, brandResult.data),
+      instructions: generationInstructions(kind, manual),
       input: JSON.stringify(context),
       max_output_tokens: kind === "article" || kind === "newsletter" ? 8000 : 6000,
       store: false,

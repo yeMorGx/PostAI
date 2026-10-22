@@ -165,11 +165,13 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const [generatedRevision, setGeneratedRevision] = useState<number | null>(null);
   const [generatedStatus, setGeneratedStatus] = useState<EditorialPost["status"] | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [generatingImageIndex, setGeneratingImageIndex] = useState<number | null>(null);
   const [reviewNote, setReviewNote] = useState(post.review_note);
   const [publishUrl, setPublishUrl] = useState(post.publication_url ?? "");
   const uploadRef = useRef<HTMLInputElement>(null);
   const dirty = draft.title !== post.title || draft.body !== post.body || draft.hashtags !== post.hashtags || JSON.stringify(draft.slides) !== JSON.stringify(post.slides) || toScheduledIso(draft.planned_for) !== post.planned_for;
   const assetsInPosition = [...assets].sort((a, b) => a.position - b.position);
+  const generatedAssetForSlide = (index: number) => assets.find((asset) => asset.file_name === `slide-${String(index + 1).padStart(2, "0")}.webp`);
   const isBriefingDraft = post.channel === "blog" && post.status === "draft" && (!post.body.trim() || isPiersecBriefing(post.body));
   const isApprovedBriefing = post.channel === "blog" && post.status === "approved" && post.approved_revision === post.revision && isPiersecBriefing(post.body);
   const isApprovedArticle = post.channel === "blog" && post.status === "approved" && post.approved_revision === post.revision && !isPiersecBriefing(post.body);
@@ -227,6 +229,20 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     finally { onPending(false); }
   }
 
+  async function generateSlideImage(index: number) {
+    onError(""); onNotice(""); onPending(true); setGeneratingImageIndex(index);
+    try {
+      await fetchJson<unknown>(`/api/editorial/posts/${post.id}/generate-image`, {
+        method: "POST",
+        body: JSON.stringify({ revision: post.revision, slide_index: index }),
+      });
+      await refresh();
+      onNotice(`Imagem da lâmina ${index + 1} gerada e anexada como base sem texto. A revisão anterior foi invalidada e a peça precisa ser revisada novamente.`);
+    } catch (cause) {
+      onError(cause instanceof Error ? cause.message : "Não foi possível gerar a imagem.");
+    } finally { setGeneratingImageIndex(null); onPending(false); }
+  }
+
   async function removeAsset(asset: EditorialAsset) {
     onError(""); onNotice(""); onPending(true);
     try {
@@ -268,7 +284,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
           <p className="editorial-ai__body">{generatedDraft.body}</p>
           {generatedDraft.hashtags && <p className="editorial-hashtags">{generatedDraft.hashtags}</p>}
           {generatedDraft.sources.length > 0 && <section aria-label="Fontes verificadas"><h5>Fontes para conferência</h5><ul className="editorial-ai__sources">{generatedDraft.sources.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.label}</a></li>)}</ul></section>}
-          {generatedDraft.slides.length > 0 && <ol className="editorial-ai__slides">{generatedDraft.slides.map((slide, index) => <li key={`${slide.title}-${index}`}><strong>{slide.role === "cover" ? "Capa" : slide.role === "final" ? "Slide final" : `Conteúdo ${index}`}: {slide.title}</strong><span>{slide.text}</span>{slide.source_attribution && <span>Fonte: {slide.source_attribution}</span>}<span>Direção visual: {slide.visual_direction}</span>{slide.visual_type === "photo" && <pre className="editorial-ai__image-prompt" aria-label={`Prompt de imagem para a lâmina ${index + 1}`}>{slide.image_prompt}</pre>}</li>)}</ol>}
+          {generatedDraft.slides.length > 0 && <ol className="editorial-ai__slides">{generatedDraft.slides.map((slide, index) => <li key={`${slide.title}-${index}`}><strong>{slide.role === "cover" ? "Capa" : slide.role === "final" ? "Slide final" : `Conteúdo ${index}`}: {slide.title}</strong><span>{slide.text}</span>{slide.source_attribution && <span>Fonte: {slide.source_attribution}</span>}<span>Direção visual: {slide.visual_direction}</span>{slide.visual_type === "photo" && <span>Base fotográfica gerada separadamente, sem texto sobreposto.</span>}</li>)}</ol>}
           <p className="editorial-muted">Aplicar substitui título, texto, hashtags e lâminas deste formulário. Nada é salvo até você salvar o rascunho.</p>
           {generatedDraft.content_type === "newsletter" && <Notice status="accent">Antes de disparar o HTML, substitua {"{{unsubscribe_url}}"} pelo link real da plataforma de e-mail.</Notice>}
           <div className="editorial-actions editorial-ai__actions"><Button type="button" className="editorial-ai__action" variant="primary" onPress={applyGeneratedDraft}>Aplicar ao editor</Button><Button type="button" className="editorial-ai__action" variant="ghost" onPress={() => { setGeneratedDraft(null); setGeneratedRevision(null); setGeneratedStatus(null); }}>Descartar prévia</Button></div>
@@ -282,8 +298,25 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
       <TextField value={draft.body} onChange={(body) => setDraft((current) => ({ ...current, body }))}><Label>Texto da publicação</Label><TextArea rows={9} maxLength={30000} placeholder="Escreva o conteúdo. Para enviar à aprovação, o texto precisa ter ao menos 20 caracteres."/></TextField>
       <TextField value={draft.hashtags} onChange={(hashtags) => setDraft((current) => ({ ...current, hashtags }))}><Label>Hashtags</Label><TextArea rows={2} maxLength={1000} placeholder="#ciberseguranca #Piersec"/></TextField>
       <TextField value={draft.planned_for} onChange={(planned_for) => setDraft((current) => ({ ...current, planned_for }))}><Label>Data e hora de publicação · São Paulo</Label><Input type="datetime-local"/></TextField>
-      {post.channel === "carrossel" && <section className="editorial-slides"><div className="editorial-section-title"><div><h3>Lâminas do carrossel</h3><p className="editorial-muted">A estrutura Piersec usa capa, quatro a sete lâminas de conteúdo e um slide final.</p></div><Button variant="secondary" isDisabled={draft.slides.length >= 9} onPress={() => setDraft((current) => ({ ...current, slides: [...current.slides, { title: "", text: "", role: "content", visual_type: "graphic", visual_direction: "", image_prompt: "", source_attribution: "" }] }))}>Adicionar lâmina</Button></div>
-        {draft.slides.map((slide, index) => <div className="editorial-slide-fields" key={index}><p className="editorial-muted">Lâmina {index + 1}{slide.role ? ` · ${slide.role === "cover" ? "capa" : slide.role === "final" ? "final" : "conteúdo"}` : ""}</p><Choice value={slide.role ?? "content"} onChange={(value) => updateSlide(index, "role", value)} label={`Função da lâmina ${index + 1}`} options={[{ id: "cover", label: "Capa" }, { id: "content", label: "Conteúdo" }, { id: "final", label: "Final" }]}/><TextField value={slide.title} onChange={(value) => updateSlide(index, "title", value)}><Label>Título</Label><Input maxLength={180}/></TextField><TextField value={slide.text} onChange={(value) => updateSlide(index, "text", value)}><Label>Texto</Label><TextArea rows={2} maxLength={1200}/></TextField><TextField value={slide.source_attribution ?? ""} onChange={(value) => updateSlide(index, "source_attribution", value)}><Label>Fonte de apoio (nome exato da fonte do artigo)</Label><Input maxLength={240}/></TextField><Choice value={slide.visual_type ?? "graphic"} onChange={(value) => { updateSlide(index, "visual_type", value); if (value === "graphic") updateSlide(index, "image_prompt", ""); }} label={`Tipo visual da lâmina ${index + 1}`} options={[{ id: "photo", label: "Foto" }, { id: "graphic", label: "Gráfico" }]}/><TextField value={slide.visual_direction ?? ""} onChange={(value) => updateSlide(index, "visual_direction", value)}><Label>Direção visual</Label><TextArea rows={2} maxLength={600}/></TextField>{slide.visual_type === "photo" && <TextField value={slide.image_prompt ?? ""} onChange={(value) => updateSlide(index, "image_prompt", value)}><Label>Prompt de imagem em inglês</Label><TextArea rows={3} maxLength={1600}/></TextField>}{draft.slides.length > 1 && <Button variant="ghost" onPress={() => setDraft((current) => ({ ...current, slides: current.slides.filter((_, slideIndex) => slideIndex !== index) }))}>Remover lâmina</Button>}</div>)}
+      {post.channel === "carrossel" && <section className="editorial-slides"><div className="editorial-section-title"><div><h3>Lâminas do carrossel</h3><p className="editorial-muted">A estrutura Piersec usa capa, quatro a sete lâminas de conteúdo e um slide final.</p></div><Button variant="secondary" isDisabled={draft.slides.length >= 9} onPress={() => setDraft((current) => ({ ...current, slides: [...current.slides, { title: "", text: "", role: "content", visual_type: "graphic", visual_direction: "", source_attribution: "" }] }))}>Adicionar lâmina</Button></div>
+        {draft.slides.map((slide, index) => {
+          const generatedAsset = generatedAssetForSlide(index);
+          return <div className="editorial-slide-fields" key={index}>
+            <p className="editorial-muted">Lâmina {index + 1}{slide.role ? ` · ${slide.role === "cover" ? "capa" : slide.role === "final" ? "final" : "conteúdo"}` : ""}</p>
+            <Choice value={slide.role ?? "content"} onChange={(value) => updateSlide(index, "role", value)} label={`Função da lâmina ${index + 1}`} options={[{ id: "cover", label: "Capa" }, { id: "content", label: "Conteúdo" }, { id: "final", label: "Final" }]}/>
+            <TextField value={slide.title} onChange={(value) => updateSlide(index, "title", value)}><Label>Título</Label><Input maxLength={180}/></TextField>
+            <TextField value={slide.text} onChange={(value) => updateSlide(index, "text", value)}><Label>Texto</Label><TextArea rows={2} maxLength={1200}/></TextField>
+            <TextField value={slide.source_attribution ?? ""} onChange={(value) => updateSlide(index, "source_attribution", value)}><Label>Fonte de apoio (nome exato da fonte do artigo)</Label><Input maxLength={240}/></TextField>
+            <Choice value={slide.visual_type ?? "graphic"} onChange={(value) => updateSlide(index, "visual_type", value)} label={`Tipo visual da lâmina ${index + 1}`} options={[{ id: "photo", label: "Foto" }, { id: "graphic", label: "Gráfico" }]}/>
+            <TextField value={slide.visual_direction ?? ""} onChange={(value) => updateSlide(index, "visual_direction", value)}><Label>Direção visual</Label><TextArea rows={2} maxLength={600}/></TextField>
+            {slide.visual_type === "photo" && <div className="editorial-image-generation">
+              <p className="editorial-muted">A foto é gerada sem texto; a direção precisa estar em inglês, como determina o manual.</p>
+              {generatedAsset ? <p className="editorial-muted" role="status">Imagem anexada. Remova-a na lista abaixo para gerar outra versão.</p> : <Button type="button" variant="secondary" isPending={generatingImageIndex === index} isDisabled={dirty || pending || generatingImageIndex !== null || !hasApprovedArticle || assets.length >= 10 || !slide.visual_direction?.trim()} onPress={() => void generateSlideImage(index)}>{generatingImageIndex === index ? "Gerando foto…" : `Gerar foto da lâmina ${index + 1}`}</Button>}
+              {generatingImageIndex === index && <p className="editorial-muted" role="status" aria-live="polite">A OpenAI está criando a base fotográfica. Isso pode levar alguns minutos.</p>}
+            </div>}
+            {draft.slides.length > 1 && <Button variant="ghost" onPress={() => setDraft((current) => ({ ...current, slides: current.slides.filter((_, slideIndex) => slideIndex !== index) }))}>Remover lâmina</Button>}
+          </div>;
+        })}
       </section>}
       <div className="editorial-actions"><Button type="submit" variant="primary" isPending={pending} isDisabled={!dirty}>{pending ? "Salvando…" : "Salvar rascunho"}</Button>{dirty && <span className="editorial-muted">Salve as alterações antes de enviar a peça para revisão ou anexar imagens.</span>}</div>
     </Form> : <div className="editorial-readonly-copy"><h3>{post.title}</h3><p>{post.body || "Sem texto cadastrado."}</p>{post.hashtags && <p className="editorial-hashtags">{post.hashtags}</p>}</div>}
@@ -291,7 +324,14 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     {canSubmitReview && <div className="editorial-review-actions"><p className="editorial-muted">Envie esta etapa para aprovação humana. O conteúdo não será publicado automaticamente.</p><Button variant="secondary" isPending={pending} onPress={() => void transition("review")}>Enviar peça para aprovação</Button></div>}
 
     {post.channel === "carrossel" && <section className="editorial-assets"><div className="editorial-section-title"><div><h3>Artes do carrossel</h3><p className="editorial-muted">PNG, JPEG ou WebP · até 5 MB cada · mínimo de duas imagens para revisão.</p></div>{canEdit && post.status !== "published" && <><Button variant="secondary" isDisabled={dirty || pending || assets.length >= 10} onPress={() => uploadRef.current?.click()}>Adicionar imagens</Button><input ref={uploadRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="sr-only" aria-label="Enviar imagens para o carrossel" onChange={(event) => void uploadFiles(event)}/></>}</div>
-      {assetsInPosition.length ? <div className="editorial-asset-grid">{assetsInPosition.map((asset) => <figure className="editorial-asset" key={asset.id}>{asset.url ? <img src={asset.url} alt={`Lâmina ${asset.position}: ${asset.file_name}`}/> : <div className="editorial-asset__missing">Prévia indisponível</div>}<figcaption><span>{asset.position}. {asset.file_name}</span>{canEdit && post.status !== "published" && <Button variant="ghost" isDisabled={dirty || pending} onPress={() => void removeAsset(asset)}>Remover</Button>}</figcaption></figure>)}</div> : <p className="editorial-empty-assets">Nenhuma arte anexada. O carrossel precisa de pelo menos duas imagens antes da aprovação.</p>}
+      {assetsInPosition.length ? <div className="editorial-asset-grid">{assetsInPosition.map((asset) => {
+        const slideNumber = slideNumberFromAssetName(asset.file_name);
+        const slide = slideNumber ? post.slides[slideNumber - 1] : undefined;
+        return <figure className="editorial-asset" key={asset.id}>
+          {asset.url ? <img src={asset.url} alt={`Lâmina ${slideNumber ?? asset.position}${slide?.title ? `: ${slide.title}` : ""}`}/> : <div className="editorial-asset__missing">Prévia indisponível</div>}
+          <figcaption><span>{slideNumber ? `Lâmina ${slideNumber}: ${slide?.title || "base fotográfica"}` : `${asset.position}. ${asset.file_name}`}</span>{canEdit && post.status !== "published" && <Button variant="ghost" isDisabled={dirty || pending} onPress={() => void removeAsset(asset)}>Remover</Button>}</figcaption>
+        </figure>;
+      })}</div> : <p className="editorial-empty-assets">Nenhuma imagem anexada. Gere as bases fotográficas das lâminas indicadas como foto ou envie arquivos da equipe.</p>}
     </section>}
 
     {canApprove && post.status === "review" && <section className="editorial-review-actions"><h3>Decisão da aprovação</h3><TextField value={reviewNote} onChange={setReviewNote}><Label>Observação se devolver para ajuste</Label><TextArea rows={2} maxLength={2000} placeholder="Explique o que deve ser revisado."/></TextField><div className="editorial-actions"><Button variant="secondary" isPending={pending} onPress={() => void transition("reject", reviewNote)}>Devolver para ajuste</Button><Button variant="primary" isPending={pending} onPress={() => void transition("approve")}>Aprovar peça</Button></div></section>}
@@ -303,6 +343,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
 }
 
 function draftFromPost(post: EditorialPost): Draft { return { revision: post.revision, title: post.title, body: post.body, hashtags: post.hashtags, slides: post.slides ?? [], planned_for: localDateTime(post.planned_for) }; }
+function slideNumberFromAssetName(fileName: string) { const match = /^slide-(\d{2})\.webp$/u.exec(fileName); return match ? Number(match[1]) : null; }
 
 function Delivery({ data, channel, setChannel, role, pending, runAction }: { data: EditorialData; channel: Channel; setChannel: (channel: Channel) => void; role: Role; pending: boolean; runAction: (url: string, method: "POST" | "PATCH", body?: unknown, success?: string) => Promise<void> }) {
   const [copied, setCopied] = useState(false);

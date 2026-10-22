@@ -8,12 +8,13 @@ Aplicação interna para preparar conteúdos de LinkedIn e Instagram. Next.js Ap
 - Entrada por link enviado por e-mail, convites com prazo e revogação.
 - Administração de pessoas e perfis, com proteção do último administrador.
 - Criação, edição, consulta e remoção de rascunhos por rede social.
-- Geração OpenAI em etapas segundo `docs/piersec/baseline_piersec`: pesquisa e briefing com web search, artigo após aprovação do briefing e três derivados após aprovação do artigo.
-- Saídas de newsletter em HTML Piersec, LinkedIn, carrossel com direção visual por lâmina e prompts em inglês para fotos.
+- Geração OpenAI em etapas usando os documentos originais de `docs/piersec/baseline_piersec`: pesquisa e briefing com web search, artigo após aprovação do briefing e três derivados após aprovação do artigo.
+- Saídas de newsletter em HTML Piersec, LinkedIn e carrossel. A direção visual vem do agente do manual; não se pede ao modelo que devolva prompts de imagem.
+- Geração sob demanda de bases fotográficas em WebP para lâminas marcadas como foto, usando a API de imagens da OpenAI e o mesmo segredo `OPENAI_API_KEY`.
 - Histórico de ações no banco, atribuição de autoria e revisão incremental dos rascunhos.
 - Referência de conteúdo extraída dos materiais fornecidos. O HTML orienta cores, tipografia e composição. Os originais em Downloads não foram alterados.
 
-Toda geração é uma prévia: a equipe revisa, aplica e salva cada etapa, aprova as quatro peças e confirma o pacote antes do agendamento. Nada é publicado ou enviado automaticamente. Para briefing, a equipe informa as páginas e a síntese da base Piersec consultadas; o servidor não lê `docs/piersec` no Vercel. O carrossel recebe prompts de imagem, mas o PostAI ainda não gera os arquivos bitmap. Artigos LinkedIn legados podem permanecer nos ciclos antigos; novas semanas seguem os quatro canais do manual. Sem configuração do Supabase, a aplicação apresenta a configuração inicial e a tela de entrada desabilitada. Não há dados fictícios nem autenticação simulada.
+Toda geração de texto é uma prévia: a equipe revisa, aplica e salva cada etapa, aprova as quatro peças e confirma o pacote antes do agendamento. Nada é publicado ou enviado automaticamente. O servidor lê a voz da marca e o agente correspondente em `docs/piersec/baseline_piersec`; esses arquivos são incluídos no pacote de cada rota pela configuração de rastreamento do Next.js. Para o briefing, a equipe ainda informa as páginas e a síntese da base Piersec consultadas. A imagem gerada é uma base fotográfica sem texto, não a lâmina final composta; ela fica no bucket privado `editorial-media` do Supabase e é associada ao número do slide pelo nome do arquivo. Artigos LinkedIn legados podem permanecer nos ciclos antigos; novas semanas seguem os quatro canais do manual. Sem configuração do Supabase, a aplicação apresenta a configuração inicial e a tela de entrada desabilitada. Não há dados fictícios nem autenticação simulada.
 
 ## Executar
 
@@ -27,7 +28,7 @@ pnpm dev
 
 Abra http://localhost:3000. Preencha `.env.local` com a URL e a chave publicável de um projeto Supabase dedicado ao PostAI. `SUPABASE_SECRET_KEY` é uma chave de servidor usada exclusivamente para enviar convites; nunca acrescente o prefixo `NEXT_PUBLIC_`. Configure `APP_URL` com a origem real da aplicação, sem barra final.
 
-Para gerar textos, configure `OPENAI_API_KEY` como variável de servidor no `.env.local` e na Vercel. Nunca use o prefixo `NEXT_PUBLIC_` nessa chave. `OPENAI_MODEL` é opcional e usa `gpt-6-luna` por padrão.
+Para gerar textos e imagens, configure a mesma `OPENAI_API_KEY` como variável de servidor no `.env.local` e na Vercel. Nunca use o prefixo `NEXT_PUBLIC_` nessa chave. `OPENAI_MODEL` é opcional e usa `gpt-6-luna` por padrão. `OPENAI_IMAGE_MODEL` é opcional e usa `gpt-image-2.5-flare` por padrão.
 
 ### Preparar o Supabase
 
@@ -78,7 +79,7 @@ Todas as tabelas da aplicação têm RLS. O acesso depende de associações atua
 
 As APIs validam origem nas mutações, tamanho do payload, formato e autorização. Campos como `workspace_id`, autoria e revisão são definidos no servidor/banco. Convites exigem correspondência com e-mail confirmado, prazo válido e ausência de revogação. A remoção de um membro impede novas operações mesmo com JWT ainda válido. Os canais Realtime já têm políticas por workspace/recurso; o transporte e a interface colaborativa serão implementados posteriormente.
 
-Não há segredos no cliente, cadastro aberto ou renderização de HTML de usuários. Respostas autenticadas usam cache privado e `no-store`. A chave OpenAI fica no servidor e a geração exige permissão de edição. O tema e as orientações de marca são enviados à OpenAI; a resposta só é gravada no Supabase quando a equipe aplica a prévia e salva o rascunho. A auditoria registra metadados das ações sem copiar textos de rascunhos. Controle de uso da API e armazenamento privado de prompts versionados continuam pendentes; a integração social exigirá OAuth, tokens protegidos, aprovação da revisão exata e publicação idempotente.
+Não há segredos no cliente, cadastro aberto ou renderização de HTML de usuários. Respostas autenticadas usam cache privado e `no-store`. A chave OpenAI fica no servidor e ambas as gerações exigem permissão de edição. O texto só é gravado quando a equipe aplica a prévia e salva o rascunho; cada imagem gerada é anexada ao carrossel pelo servidor e invalida a aprovação da versão anterior. A auditoria registra metadados das ações sem copiar textos de rascunhos. A composição e exportação da lâmina final ainda exigem uma etapa própria; a integração social exigirá OAuth, tokens protegidos, aprovação da revisão exata e publicação idempotente.
 
 ## Verificações disponíveis
 
@@ -96,7 +97,7 @@ pnpm db:check
 
 1. Presença, comentários em threads, menções e atribuições com Supabase Realtime e RLS.
 2. Tiptap + Yjs, provider privado, snapshots, restauração e sugestões. Não incluir cursores multiplayer ou chat.
-3. Geração direta de arquivos de imagem, regras Piersec versionadas e controle de uso da API.
+3. Composição e exportação das lâminas finais a partir das bases fotográficas e do texto aprovado, com os elementos oficiais da marca.
 4. OAuth de LinkedIn/Instagram, fila de publicação com retentativas, idempotência e auditoria. Nenhuma publicação sem aprovação.
 5. Compartilhamento com tokens aleatórios armazenados como hash, expiração, revogação e acesso limitado ao recurso; notificações/feed. Integração com calendário externo será definida posteriormente.
 

@@ -36,7 +36,6 @@ const generatedSlideSchema = z.object({
   role: z.enum(["cover", "content", "final"]),
   visual_type: z.enum(["photo", "graphic"]),
   visual_direction: z.string().trim().min(1).max(600),
-  image_prompt: z.string().max(1600),
   source_attribution: z.string().max(240),
 }).strict();
 const generatedSourceSchema = z.object({ label: z.string().trim().min(1).max(240), url: z.string().url().max(2000).refine((value) => new URL(value).protocol === "https:") }).strict();

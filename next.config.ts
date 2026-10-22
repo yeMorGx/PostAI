@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/api/editorial/posts/*/generate": ["./docs/piersec/baseline_piersec/*.md"],
+    "/api/editorial/posts/*/generate-image": ["./docs/piersec/baseline_piersec/*.md"],
+  },
   async headers() {
     return [{
       source: "/:path*",

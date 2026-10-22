@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildGeneratedDraft, extractMarkdownSources, imagePromptSuffix } from "./editorial-generation";
+import { buildGeneratedDraft, extractMarkdownSources, generationInstructions } from "./editorial-generation";
+import { buildImageGenerationPrompt } from "./editorial-image-generation";
 
 const sources = Array.from({ length: 4 }, (_, index) => ({
   label: `Relatório primário ${index + 1}`,
@@ -79,21 +80,36 @@ describe("geração editorial alinhada ao manual Piersec", () => {
     expect(draft.body).toContain(sources[0].url);
   });
 
-  it("exige a estrutura correta e o sufixo manual nos prompts fotográficos", () => {
+  it("usa apenas a direção visual e não devolve prompts de imagem inventados", () => {
     const caption = Array.from({ length: 90 }, (_, index) => index % 2 ? "governança" : "continuidade").join(" ");
     const slides = [
-      { role: "cover", title: "Acesso seguro começa aqui", text: "Governança reduz riscos operacionais", visual_type: "photo", visual_direction: "Equipe analisando uma matriz de acessos em reunião.", image_prompt: `A real security team reviewing access governance in a modern office, natural light, ${imagePromptSuffix}`, source_attribution: "" },
-      ...Array.from({ length: 4 }, (_, index) => ({ role: "content", title: `Revisão de acesso ${index + 1}`, text: "A equipe revisa privilégios e registra a decisão. O processo considera função, contexto e necessidade operacional.", visual_type: "graphic", visual_direction: "Diagrama sóbrio em navy, com hierarquia tipográfica clara.", image_prompt: "", source_attribution: sources[0].label })),
-      { role: "final", title: "Compartilhe com a equipe", text: "Revise os acessos periodicamente.", visual_type: "graphic", visual_direction: "Síntese gráfica em navy com espaço para o rodapé da marca.", image_prompt: "", source_attribution: "" },
+      { role: "cover", title: "Acesso seguro começa aqui", text: "Governança reduz riscos operacionais", visual_type: "photo", visual_direction: "A real security team reviewing access governance in a modern office, with natural light and a clear focal person.", source_attribution: "" },
+      ...Array.from({ length: 4 }, (_, index) => ({ role: "content", title: `Revisão de acesso ${index + 1}`, text: "A equipe revisa privilégios e registra a decisão. O processo considera função, contexto e necessidade operacional.", visual_type: "graphic", visual_direction: "Diagrama sóbrio em navy, com hierarquia tipográfica clara.", source_attribution: sources[0].label })),
+      { role: "final", title: "Compartilhe com a equipe", text: "Revise os acessos periodicamente.", visual_type: "graphic", visual_direction: "Síntese gráfica em navy com espaço para o rodapé da marca.", source_attribution: "" },
     ];
     const output = { caption, hashtags: ["#Cibersegurança", "#GestãoDeRisco", "#Governança", "#Continuidade", "#Piersec"], slides, alternative_hooks: ["Acesso também é uma decisão de negócio.", "Governança começa por saber quem tem acesso."], sources: [sources[0]], story: [] };
     const draft = buildGeneratedDraft("carousel", output, context);
     expect(draft.slides).toHaveLength(6);
-    expect(draft.slides[0].image_prompt?.endsWith(imagePromptSuffix)).toBe(true);
+    expect(draft.slides[0].visual_direction).toContain("real security team");
+    expect("image_prompt" in draft.slides[0]).toBe(false);
     expect(draft.body).not.toContain("## STORY");
 
     const commercialFinal = structuredClone(output);
     commercialFinal.slides[5].text = "Fale conosco para agendar um diagnóstico.";
     expect(() => buildGeneratedDraft("carousel", commercialFinal, context)).toThrow(/chamada comercial/i);
+  });
+
+  it("usa o manual específico na geração textual e na composição da solicitação de imagem", () => {
+    const manual = "## Voz da marca\n\nRegra canônica Piersec.";
+    expect(generationInstructions("carousel", manual)).toContain(manual);
+    expect(generationInstructions("carousel", manual)).toContain("Agente de carrossel");
+
+    const imagePrompt = buildImageGenerationPrompt("Fotos: `photorealistic, editorial, no text, no logos, navy and cyan tones, soft cinematic light`.", {
+      role: "cover",
+      visual_direction: "A business leader reviewing access permissions in a natural office setting.",
+    });
+    expect(imagePrompt).toContain("A business leader reviewing access permissions");
+    expect(imagePrompt).toContain("photorealistic, editorial, no text, no logos, navy and cyan tones, soft cinematic light");
+    expect(imagePrompt).toContain("Do not render words, numbers, logos");
   });
 });
