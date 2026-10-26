@@ -98,13 +98,13 @@ export function EditorialWorkspace({ mode, initialData, role, initialChannel = "
       </Form>}
       <CyclePicker cycles={cycles} active={activeCycle} onSelect={(cycle) => { setSelectedCycleId(cycle.id); setSelectedPostId(""); setChannel("blog"); setActiveComposerDirty(false); }}/>
       {activeCycle ? <>
-        <div className="editorial-summary-row"><div><h2>{formatWeek(activeCycle.week_start)} · {activeCycle.theme}</h2><p className="editorial-muted">Gere as quatro peças em sequência e revise os rascunhos antes das aprovações.</p></div>
+        <div className="editorial-summary-row"><div><h2>{formatWeek(activeCycle.week_start)} · {activeCycle.theme}</h2></div>
           <div className="editorial-actions">
             {canApprove && hasRequiredCyclePosts && !packageFinalized && <Button variant="primary" isPending={pending} isDisabled={!packageApproved || approvedBriefingNeedsArticle} onPress={() => void approveWeek()}>{approvedBriefingNeedsArticle ? "Finalize o artigo antes do pacote" : packageApproved ? "Confirmar pacote e agendar" : "Aprove cada peça antes do pacote"}</Button>}
           </div>
         </div>
         {hasRequiredCyclePosts && <PackageGenerationPanel key={activeCycle.id} cycle={activeCycle} posts={posts} assets={data.assets.filter((asset) => posts.some((post) => post.id === asset.post_id))} canEdit={canEdit && !packageFinalized} pending={pending} dirty={activeComposerDirty} onPending={setPending} onNotice={setNotice} onError={setError} refresh={state.refresh}/>}
-        {approvedBriefingNeedsArticle ? <Notice status="accent">O briefing foi aprovado. O botão de geração completa prepara o artigo e os três derivados em sequência, mantendo as peças como rascunhos para revisão.</Notice> : packageFinalized ? <Notice status="success">Pacote confirmado e agendado. A publicação nas plataformas continua manual.</Notice> : hasRequiredCyclePosts && <Notice status="accent">Depois de gerar, revise e aprove cada peça. A confirmação agenda o pacote; a publicação nas plataformas continua manual.</Notice>}
+        {packageFinalized && <Notice status="success">Pacote agendado. Publique nas plataformas nos horários indicados.</Notice>}
         <div className="editorial-cycle-layout">
           <Card className="editorial-post-list"><Card.Header><Card.Title>Peças da semana</Card.Title><Card.Description>{posts.filter((post) => post.status === "scheduled").length} agendadas de {posts.length}</Card.Description></Card.Header><Card.Content className="editorial-post-list__items">
             {posts.map((post) => <Button key={post.id} variant={activePost?.id === post.id ? "secondary" : "ghost"} className="editorial-post-picker" isDisabled={pending} onPress={() => { setSelectedPostId(post.id); setChannel(post.channel); setActiveComposerDirty(false); }}>
@@ -195,7 +195,6 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   const generatedAssetForSlide = (index: number) => assets.find((asset) => asset.file_name === `slide-${String(index + 1).padStart(2, "0")}.webp`);
   const isBriefingDraft = post.channel === "blog" && post.status === "draft" && (!post.body.trim() || isPiersecBriefing(post.body));
   const isApprovedBriefing = post.channel === "blog" && post.status === "approved" && post.approved_revision === post.revision && isPiersecBriefing(post.body);
-  const isApprovedArticle = post.channel === "blog" && post.status === "approved" && post.approved_revision === post.revision && !isPiersecBriefing(post.body);
   const canGenerate = post.channel !== "lkart" && !dirty && (isBriefingDraft || isApprovedBriefing || (post.channel !== "blog" && post.status === "draft" && hasApprovedArticle));
   const carouselGenerationBlockReason = [
     post.status !== "draft" ? "A geração só fica disponível enquanto a peça estiver em rascunho." : "",
@@ -427,8 +426,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     {post.publication_url && <p className="editorial-published-link"><a href={post.publication_url} target="_blank" rel="noreferrer">Abrir publicação registrada</a></p>}
     {canEdit && post.status !== "published" ? <Form className="editorial-form" onSubmit={(event) => void save(event)}>
       {(canGenerate || post.channel === "carrossel") && <section className="editorial-ai" aria-labelledby="editorial-ai-title">
-        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing" : "Regenerar esta peça"}</h3><p className="editorial-muted">{isBriefingDraft ? "Esta ação isolada gera somente a pesquisa e o briefing. Para preparar artigo, newsletter, LinkedIn e carrossel em sequência, use a geração completa no topo." : isApprovedBriefing ? "Esta ação isolada gera o artigo a partir do briefing. A geração completa do ciclo também prepara os três derivados." : "Esta ação regenera somente a peça aberta, usando o artigo e as fontes registrados nesta semana."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" aria-label={`Gerar somente ${channelLabels[post.channel]} com OpenAI`} aria-describedby={post.channel === "carrossel" && carouselGenerationBlockReason ? "carousel-generation-help" : undefined} isPending={generating || estimatingGeneration} isDisabled={generating || estimatingGeneration || pending || !canGenerate} onPress={() => void requestGenerationConfirmation("draft")}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Gerando conteúdo…" : estimatingGeneration ? "Calculando custo…" : <span className="inline-flex items-center gap-2">Gerar só esta peça com <OpenAIMark /></span>}</Button></div>
-        <p className="editorial-muted">Tema: {cycleTheme}. Esta ação salva um único rascunho. No carrossel, também cria as fotos indicadas pelo manual. As aprovações continuam humanas e nada é publicado automaticamente.</p>
+        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Gerar briefing" : isApprovedBriefing ? "Gerar artigo" : "Gerar esta peça"}</h3></div><Button type="button" className="editorial-ai__action" variant="secondary" aria-label={`Gerar somente ${channelLabels[post.channel]} com OpenAI`} aria-describedby={post.channel === "carrossel" && carouselGenerationBlockReason ? "carousel-generation-help" : undefined} isPending={generating || estimatingGeneration} isDisabled={generating || estimatingGeneration || pending || !canGenerate} onPress={() => void requestGenerationConfirmation("draft")}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Gerando conteúdo…" : estimatingGeneration ? "Calculando custo…" : <span className="inline-flex items-center gap-2">Gerar com <OpenAIMark /></span>}</Button></div>
         <GenerationCostSummary postId={post.id} revision={post.revision} stage={isBriefingDraft ? "briefing" : isApprovedBriefing ? "article" : post.channel} title={draft.title} enabled={canEdit && canGenerate && !generating} retryPhotos={carouselImageRetry?.slideIndexes.length ?? 0} cost={generationCost} costLabel={costLabel}/>
         {post.channel === "carrossel" && carouselGenerationBlockReason && <p id="carousel-generation-help" className="editorial-muted" role="status" aria-live="polite">{carouselGenerationBlockReason}</p>}
         {generating && <p className="editorial-muted" role="status" aria-live="polite">{generationProgress || "Aguardando a resposta da OpenAI…"}</p>}
@@ -436,9 +434,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
         {post.channel === "news" && draft.body.includes("{{unsubscribe_url}}") && <Notice status="accent">Antes de disparar o HTML, substitua {"{{unsubscribe_url}}"} pelo link real da plataforma de e-mail.</Notice>}
       </section>}
       {canEdit && post.channel === "lkart" && <Notice status="accent">O manual Piersec não define um agente para Artigo LinkedIn. Este canal não recebe geração automática.</Notice>}
-      {canEdit && post.channel !== "blog" && post.channel !== "lkart" && post.channel !== "carrossel" && post.status === "draft" && !hasApprovedArticle && <Notice status="accent">A geração isolada deste derivado usa o artigo aprovado. Para gerar todas as peças em sequência, use o botão de geração completa no topo do ciclo.</Notice>}
-      {isApprovedArticle && <Notice status="accent">Este artigo já está aprovado. As peças derivadas podem usar esta versão como fonte.</Notice>}
-      {isApprovedBriefing && <Notice status="accent">Briefing aprovado. Redija o artigo antes de agendar ou publicar esta peça.</Notice>}
+      {canEdit && post.channel !== "blog" && post.channel !== "lkart" && post.channel !== "carrossel" && post.status === "draft" && !hasApprovedArticle && <Notice status="accent">Aprove o artigo ou use “Gerar tudo” para criar esta peça.</Notice>}
       <TextField value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} isReadOnly={generating || pending} isRequired><Label>Título</Label><Input minLength={3} maxLength={180}/></TextField>
       <TextField value={draft.body} onChange={(body) => setDraft((current) => ({ ...current, body }))} isReadOnly={generating || pending}><Label>Texto da publicação</Label><TextArea rows={9} maxLength={30000} placeholder="Escreva o conteúdo. Para enviar à aprovação, o texto precisa ter ao menos 20 caracteres."/></TextField>
       <TextField value={draft.hashtags} onChange={(hashtags) => setDraft((current) => ({ ...current, hashtags }))} isReadOnly={generating || pending}><Label>Hashtags</Label><TextArea rows={2} maxLength={1000} placeholder="#ciberseguranca #Piersec"/></TextField>
@@ -465,7 +461,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
       <div className="editorial-actions"><Button type="submit" variant="primary" isPending={pending} isDisabled={generating || pending || !dirty}>{pending ? "Salvando…" : "Salvar rascunho"}</Button>{dirty && <span className="editorial-muted">Salve as alterações antes de enviar a peça para revisão ou anexar imagens.</span>}</div>
     </Form> : <div className="editorial-readonly-copy"><h3>{post.title}</h3><p>{post.body || "Sem texto cadastrado."}</p>{post.hashtags && <p className="editorial-hashtags">{post.hashtags}</p>}</div>}
 
-    {canSubmitReview && <div className="editorial-review-actions"><p className="editorial-muted">Envie esta etapa para aprovação humana. O conteúdo não será publicado automaticamente.</p><Button variant="secondary" isPending={pending} onPress={() => void transition("review")}>Enviar peça para aprovação</Button></div>}
+    {canSubmitReview && <div className="editorial-review-actions"><Button variant="secondary" isPending={pending} onPress={() => void transition("review")}>Enviar para aprovação</Button></div>}
 
     {post.channel === "carrossel" && <section className="editorial-assets"><div className="editorial-section-title"><div><h3>Artes do carrossel</h3><p className="editorial-muted">PNG, JPEG ou WebP · até 5 MB cada · mínimo de duas imagens para revisão.</p></div>{canEdit && post.status !== "published" && <><Button variant="secondary" isDisabled={dirty || pending || assets.length >= 10} onPress={() => uploadRef.current?.click()}>Adicionar imagens</Button><input ref={uploadRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="sr-only" aria-label="Enviar imagens para o carrossel" onChange={(event) => void uploadFiles(event)}/></>}</div>
       {assetsInPosition.length ? <div className="editorial-asset-grid">{assetsInPosition.map((asset) => {
@@ -490,8 +486,8 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
        imageCount={generationConfirmation.photoCount}
        imageCountIsMaximum={generationConfirmation.action !== "photos"}
        showText={generationConfirmation.action !== "photos"}
-       description={generationConfirmation.action === "photos" ? `Somente as ${generationConfirmation.photoCount} fotos pendentes do carrossel serão geradas.` : `O PostAI vai preparar ${channelLabels[post.channel].toLowerCase()} com o conteúdo orientado pelos manuais Piersec.`}
-       replacementWarning={generationConfirmation.replacesExisting ? "O conteúdo salvo desta peça será substituído. O novo resultado continuará como rascunho e não será publicado." : undefined}
+       description={generationConfirmation.action === "photos" ? `Gerar ${generationConfirmation.photoCount} foto(s) pendente(s) do carrossel.` : isBriefingDraft ? "Gerar pesquisa e briefing do artigo." : `Gerar ${channelLabels[post.channel].toLowerCase()}.`}
+       replacementWarning={generationConfirmation.replacesExisting ? "O conteúdo atual será substituído por um novo rascunho." : undefined}
        onClose={() => setGenerationConfirmation(null)}
        onConfirm={confirmGeneration}
      />}

@@ -32,7 +32,7 @@ export function GenerationConfirmationDialog({
     <Modal.Container size="sm">
       <Modal.Dialog className="editorial-generation-confirm">
         <Modal.Header>
-          <Modal.Heading>Confirme o custo antes de gerar</Modal.Heading>
+          <Modal.Heading>Confirmar geração</Modal.Heading>
         </Modal.Header>
         <Modal.Body>
           <p>{description}</p>
@@ -41,14 +41,15 @@ export function GenerationConfirmationDialog({
             <strong>{formatCostRange(cost)}</strong>
           </div>
           {replacementWarning && <p className="editorial-generation-confirm__warning">{replacementWarning}</p>}
-          <div className="editorial-generation-confirm__details">
+          <p className="editorial-muted">O custo final pode variar. Valores em dólar, antes de câmbio e impostos.</p>
+          <details className="editorial-generation-confirm__details">
+            <summary>Detalhes do custo</summary>
             {showText && estimate.text && <p>Texto e pesquisa: {formatCostRange(estimate.text)} · {estimate.text_model}.</p>}
             {imageCount > 0 && imageRate && <p>Fotos: {imageCountIsMaximum ? `até ${imageCount}` : imageCount}, estimadas em {formatCostRange({ min: imageRate.min * imageCount, max: imageRate.max * imageCount })} · {estimate.image_model}.</p>}
-            <p>O valor final pode variar conforme o tamanho das respostas, as buscas e as correções. Esta faixa é uma previsão, não um limite de cobrança.</p>
+            <p>A previsão inclui respostas, buscas e correções automáticas. Não é um limite de cobrança. O consumo informado pela OpenAI inclui as etapas concluídas mesmo se uma etapa posterior falhar.</p>
             <p>Preços conferidos em {new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${estimate.pricing_date}T12:00:00Z`))}. Valores antes de câmbio e impostos.</p>
             <p><a href={PRICING_URL} target="_blank" rel="noreferrer">Consultar preços oficiais da OpenAI</a>.</p>
-          </div>
-          <p className="editorial-generation-confirm__notice">Nenhuma geração paga começa antes da sua confirmação.</p>
+          </details>
         </Modal.Body>
         <Modal.Footer className="editorial-generation-confirm__actions">
           <Button variant="secondary" autoFocus onPress={onClose}>Voltar</Button>
