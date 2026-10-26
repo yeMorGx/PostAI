@@ -68,6 +68,8 @@ describe("custos de geração OpenAI", () => {
     const remaining = estimateGenerationCost({ ...request, maxPhotos: 2 });
     const textOnly = estimateGenerationCost({ ...request, maxPhotos: 0 });
     expect(full.total!.max - remaining.total!.max).toBeCloseTo(full.images!.per_image!.max * 7, 8);
+    expect(full.total!.min - remaining.total!.min).toBeCloseTo(full.images!.per_image!.min * 7, 8);
+    expect(full.total!.min).toBeCloseTo(full.text!.min + full.images!.per_image!.min * 9, 8);
     expect(textOnly.total).toEqual(textOnly.text);
     expect(full.total!.min).toBeLessThan(full.total!.max);
     expect(estimateGenerationCost({ ...request, imageModel: "imagem-desconhecida", maxPhotos: 1 }).total).toBeNull();

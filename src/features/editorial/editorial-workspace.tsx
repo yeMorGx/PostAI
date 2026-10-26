@@ -9,9 +9,10 @@ import { channelLabels, cycleChannels, formatScheduled, isPiersecBriefing, local
 import { fetchGenerationJson, fetchJson } from "@/lib/api-client";
 import { useEditorial } from "./use-editorial";
 import { CarouselMarquee } from "@/features/reference/carousel-marquee";
-import { addGenerationCost, emptyGenerationCost, type GenerationCost } from "@/lib/generation-cost";
+import { addGenerationCost, emptyGenerationCost, type CostRange, type GenerationCost, type GenerationEstimate } from "@/lib/generation-cost";
 import { GenerationCostSummary } from "./generation-cost-summary";
 import { PackageGenerationPanel } from "./package-generation-panel";
+import { GenerationConfirmationDialog } from "./generation-confirmation-dialog";
 
 type Mode = "overview" | "cycle" | "delivery" | "identity" | "results" | "calendar";
 const channelList: Channel[] = ["blog", "news", "lkpost", "carrossel", "lkart"];
@@ -168,12 +169,15 @@ function Stat({ value, label, note }: { value: number; label: string; note: stri
 
 type Draft = { revision: number; title: string; body: string; hashtags: string; slides: CarouselSlide[]; planned_for: string };
 type CarouselImageTask = { slides: CarouselSlide[]; revision: number; slideIndexes: number[] };
+type GenerationConfirmation = { action: "draft" | "photos"; estimate: GenerationEstimate; cost: CostRange; photoCount: number; replacesExisting: boolean };
 function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, canApprove, pending, onPending, onNotice, onError, onDirtyChange, refresh, mutate }: { post: EditorialPost; cycleTheme: string; hasApprovedArticle: boolean; assets: EditorialAsset[]; canEdit: boolean; canApprove: boolean; pending: boolean; onPending: (value: boolean) => void; onNotice: (value: string) => void; onError: (value: string) => void; onDirtyChange: (value: boolean) => void; refresh: () => Promise<unknown>; mutate: ReturnType<typeof useEditorial>["mutate"] }) {
   const [draft, setDraft] = useState<Draft>(() => draftFromPost(post));
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState("");
   const [generationCost, setGenerationCost] = useState<GenerationCost | null>(null);
   const [costLabel, setCostLabel] = useState("Custo desta geração");
+  const [estimatingGeneration, setEstimatingGeneration] = useState(false);
+  const [generationConfirmation, setGenerationConfirmation] = useState<GenerationConfirmation | null>(null);
   const [carouselImageRetry, setCarouselImageRetry] = useState<CarouselImageTask | null>(() => {
     if (post.channel !== "carrossel") return null;
     const attached = new Set(assets.filter((asset) => asset.post_id === post.id).map((asset) => asset.file_name));
@@ -222,9 +226,41 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     return await mutate.mutateAsync({ url: `/api/editorial/posts/${post.id}`, method: "PATCH", body: { ...values, planned_for: toScheduledIso(values.planned_for) } }) as EditorialPost;
   }
 
+  async function requestGenerationConfirmation(action: "draft" | "photos") {
+    if (estimatingGeneration || generating || pending) return;
+    const photoCount = action === "photos" ? carouselImageRetry?.slideIndexes.length ?? 0 : 0;
+    if (action === "photos" && !photoCount) return;
+    setEstimatingGeneration(true);
+    onError("");
+    onNotice("");
+    try {
+      const query = new URLSearchParams({ revision: String(post.revision), working_title: draft.title });
+      const estimate = await fetchJson<GenerationEstimate>(`/api/editorial/posts/${post.id}/generate?${query}`);
+      const cost = action === "photos"
+        ? estimate.images?.per_image && photoCount
+          ? { min: estimate.images.per_image.min * photoCount, max: estimate.images.per_image.max * photoCount }
+          : null
+        : estimate.total;
+      if (!cost) throw new Error("Não há uma tarifa cadastrada para estimar esta geração. A geração foi bloqueada para evitar um custo sem previsão.");
+      const hasSavedContent = Boolean(post.body.trim() || post.hashtags.trim() || post.slides.length || post.title !== cycleTheme);
+      setGenerationConfirmation({ action, estimate, cost, photoCount: action === "photos" ? photoCount : estimate.images?.max_count ?? 0, replacesExisting: action === "draft" && hasSavedContent });
+    } catch (cause) {
+      onError(`Não foi possível confirmar o custo, então a geração não foi iniciada. ${cause instanceof Error ? cause.message : "Tente calcular novamente."}`);
+    } finally {
+      setEstimatingGeneration(false);
+    }
+  }
+
+  function confirmGeneration() {
+    const action = generationConfirmation?.action;
+    if (!action) return;
+    setGenerationConfirmation(null);
+    if (action === "photos") void resumeCarouselImages();
+    else void generateDraft();
+  }
+
   async function generateDraft() {
-    const hasSavedContent = Boolean(post.body.trim() || post.hashtags.trim() || post.slides.length || post.title !== cycleTheme);
-    if (hasSavedContent && !window.confirm("Gerar novamente substitui o conteúdo salvo desta peça. Ela continuará como rascunho e não será publicada. Deseja continuar?")) return;
+    if (generating || pending) return;
     setGenerationCost(emptyGenerationCost()); setCostLabel("Custo desta geração");
     onError(""); onNotice(""); setGenerating(true); onPending(true);
     try {
@@ -337,6 +373,7 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
   }
 
   async function resumeCarouselImages() {
+    if (generating || pending || !carouselImageRetry) return;
     if (!generationCost) { setGenerationCost(emptyGenerationCost()); setCostLabel("Custo desta retomada"); }
     if (carouselImageRetry) await generateCarouselImages(carouselImageRetry);
   }
@@ -390,12 +427,12 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
     {post.publication_url && <p className="editorial-published-link"><a href={post.publication_url} target="_blank" rel="noreferrer">Abrir publicação registrada</a></p>}
     {canEdit && post.status !== "published" ? <Form className="editorial-form" onSubmit={(event) => void save(event)}>
       {(canGenerate || post.channel === "carrossel") && <section className="editorial-ai" aria-labelledby="editorial-ai-title">
-        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing" : "Regenerar esta peça"}</h3><p className="editorial-muted">{isBriefingDraft ? "Esta ação isolada gera somente a pesquisa e o briefing. Para preparar artigo, newsletter, LinkedIn e carrossel em sequência, use a geração completa no topo." : isApprovedBriefing ? "Esta ação isolada gera o artigo a partir do briefing. A geração completa do ciclo também prepara os três derivados." : "Esta ação regenera somente a peça aberta, usando o artigo e as fontes registrados nesta semana."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" aria-label={`Gerar somente ${channelLabels[post.channel]} com OpenAI`} aria-describedby={post.channel === "carrossel" && carouselGenerationBlockReason ? "carousel-generation-help" : undefined} isPending={generating} isDisabled={generating || pending || !canGenerate} onPress={() => void generateDraft()}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Gerando conteúdo…" : <span className="inline-flex items-center gap-2">Gerar só esta peça com <OpenAIMark /></span>}</Button></div>
+        <div className="editorial-ai__top"><div><h3 id="editorial-ai-title">{isBriefingDraft ? "Pesquisa e briefing" : isApprovedBriefing ? "Artigo a partir do briefing" : "Regenerar esta peça"}</h3><p className="editorial-muted">{isBriefingDraft ? "Esta ação isolada gera somente a pesquisa e o briefing. Para preparar artigo, newsletter, LinkedIn e carrossel em sequência, use a geração completa no topo." : isApprovedBriefing ? "Esta ação isolada gera o artigo a partir do briefing. A geração completa do ciclo também prepara os três derivados." : "Esta ação regenera somente a peça aberta, usando o artigo e as fontes registrados nesta semana."}</p></div><Button type="button" className="editorial-ai__action" variant="secondary" aria-label={`Gerar somente ${channelLabels[post.channel]} com OpenAI`} aria-describedby={post.channel === "carrossel" && carouselGenerationBlockReason ? "carousel-generation-help" : undefined} isPending={generating || estimatingGeneration} isDisabled={generating || estimatingGeneration || pending || !canGenerate} onPress={() => void requestGenerationConfirmation("draft")}>{generating ? post.channel === "carrossel" ? "Gerando carrossel…" : "Gerando conteúdo…" : estimatingGeneration ? "Calculando custo…" : <span className="inline-flex items-center gap-2">Gerar só esta peça com <OpenAIMark /></span>}</Button></div>
         <p className="editorial-muted">Tema: {cycleTheme}. Esta ação salva um único rascunho. No carrossel, também cria as fotos indicadas pelo manual. As aprovações continuam humanas e nada é publicado automaticamente.</p>
         <GenerationCostSummary postId={post.id} revision={post.revision} stage={isBriefingDraft ? "briefing" : isApprovedBriefing ? "article" : post.channel} title={draft.title} enabled={canEdit && canGenerate && !generating} retryPhotos={carouselImageRetry?.slideIndexes.length ?? 0} cost={generationCost} costLabel={costLabel}/>
         {post.channel === "carrossel" && carouselGenerationBlockReason && <p id="carousel-generation-help" className="editorial-muted" role="status" aria-live="polite">{carouselGenerationBlockReason}</p>}
         {generating && <p className="editorial-muted" role="status" aria-live="polite">{generationProgress || "Aguardando a resposta da OpenAI…"}</p>}
-        {carouselImageRetry && post.channel === "carrossel" && <div className="editorial-ai__actions"><p className="editorial-muted" role="status">O texto já está salvo. {carouselImageRetry.slideIndexes.length} foto(s) aguardam geração.</p><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating} isDisabled={generating || pending || dirty} onPress={() => void resumeCarouselImages()}>{generating ? "Retomando fotos…" : "Retomar geração das fotos"}</Button></div>}
+        {carouselImageRetry && post.channel === "carrossel" && <div className="editorial-ai__actions"><p className="editorial-muted" role="status">O texto já está salvo. {carouselImageRetry.slideIndexes.length} foto(s) aguardam geração.</p><Button type="button" className="editorial-ai__action" variant="secondary" isPending={generating || estimatingGeneration} isDisabled={generating || estimatingGeneration || pending || dirty} onPress={() => void requestGenerationConfirmation("photos")}>{generating ? "Retomando fotos…" : estimatingGeneration ? "Calculando custo…" : "Retomar geração das fotos"}</Button></div>}
         {post.channel === "news" && draft.body.includes("{{unsubscribe_url}}") && <Notice status="accent">Antes de disparar o HTML, substitua {"{{unsubscribe_url}}"} pelo link real da plataforma de e-mail.</Notice>}
       </section>}
       {canEdit && post.channel === "lkart" && <Notice status="accent">O manual Piersec não define um agente para Artigo LinkedIn. Este canal não recebe geração automática.</Notice>}
@@ -446,6 +483,18 @@ function PostComposer({ post, cycleTheme, hasApprovedArticle, assets, canEdit, c
      {canApprove && post.status === "scheduled" && <section className="editorial-review-actions"><h3>Registrar publicação manual</h3><p className="editorial-muted">Depois de publicar na plataforma, informe o endereço da publicação.</p><TextField value={publishUrl} onChange={setPublishUrl}><Label>Link HTTPS da publicação</Label><Input type="url" placeholder="https://www.linkedin.com/posts/…"/></TextField><Button variant="secondary" isPending={pending} isDisabled={!publishUrl.startsWith("https://")} onPress={() => void transition("publish", "", publishUrl)}>Marcar como publicada</Button></section>}
     {canApprove && post.status === "scheduled" && <Button className="mt-3" variant="ghost" isPending={pending} onPress={() => void transition("cancel")}>Cancelar agendamento</Button>}
     {post.status === "scheduled" && <Notice status="accent">O PostAI organiza a fila. A publicação na rede ainda é feita manualmente pela equipe.</Notice>}
+     {generationConfirmation && <GenerationConfirmationDialog
+       isOpen
+       estimate={generationConfirmation.estimate}
+       cost={generationConfirmation.cost}
+       imageCount={generationConfirmation.photoCount}
+       imageCountIsMaximum={generationConfirmation.action !== "photos"}
+       showText={generationConfirmation.action !== "photos"}
+       description={generationConfirmation.action === "photos" ? `Somente as ${generationConfirmation.photoCount} fotos pendentes do carrossel serão geradas.` : `O PostAI vai preparar ${channelLabels[post.channel].toLowerCase()} com o conteúdo orientado pelos manuais Piersec.`}
+       replacementWarning={generationConfirmation.replacesExisting ? "O conteúdo salvo desta peça será substituído. O novo resultado continuará como rascunho e não será publicado." : undefined}
+       onClose={() => setGenerationConfirmation(null)}
+       onConfirm={confirmGeneration}
+     />}
   </Card.Content></Card>;
 }
 

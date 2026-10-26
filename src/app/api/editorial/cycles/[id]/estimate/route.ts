@@ -134,7 +134,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       max: textRanges.reduce((sum, range) => sum + range.max, 0),
     };
     const total = text && (!maxPhotos || imageEstimate?.per_image)
-      ? { min: text.min, max: text.max + (imageEstimate?.per_image?.max ?? 0) * maxPhotos }
+      ? {
+        min: text.min + (imageEstimate?.per_image?.min ?? 0) * maxPhotos,
+        max: text.max + (imageEstimate?.per_image?.max ?? 0) * maxPhotos,
+      }
       : null;
     const result: GenerationEstimate = {
       currency: "USD",

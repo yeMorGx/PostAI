@@ -1,4 +1,4 @@
-export const PRICING_DATE = "2026-10-22";
+export const PRICING_DATE = "2026-10-26";
 export const PRICING_URL = "https://developers.openai.com/api/docs/pricing";
 export const DEFAULT_TEXT_MODEL = "gpt-6-luna";
 export const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-flare";
@@ -111,7 +111,10 @@ export function estimateGenerationCost(input: { model: string; prompt: string; m
   return {
     currency: "USD", pricing_date: PRICING_DATE, text_model: input.model, image_model: input.imageModel ?? null,
     text, images: input.imageModel ? { max_count: maxPhotos, per_image: perImage } : null,
-    total: text && (!maxPhotos || perImage) ? { min: text.min, max: text.max + (perImage?.max ?? 0) * maxPhotos } : null,
+    total: text && (!maxPhotos || perImage) ? {
+      min: text.min + (perImage?.min ?? 0) * maxPhotos,
+      max: text.max + (perImage?.max ?? 0) * maxPhotos,
+    } : null,
   };
 }
 

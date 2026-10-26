@@ -7,6 +7,7 @@ import { OpenAIMark } from "@/components/openai-mark";
 import { fetchGenerationJson, fetchJson } from "@/lib/api-client";
 import { channelLabels, isPiersecBriefing, type CarouselSlide, type EditorialAsset, type EditorialCycle, type EditorialPost, type GeneratedDraft } from "@/lib/editorial";
 import { addGenerationCost, emptyGenerationCost, formatCostRange, formatUsd, PRICING_URL, type GenerationCost, type GenerationEstimate } from "@/lib/generation-cost";
+import { GenerationConfirmationDialog } from "./generation-confirmation-dialog";
 
 type Props = {
   cycle: EditorialCycle;
@@ -39,7 +40,10 @@ function packageIsComplete(posts: EditorialPost[], assets: EditorialAsset[]) {
 export function PackageGenerationPanel({ cycle, posts, assets, canEdit, pending, dirty, onPending, onNotice, onError, refresh }: Props) {
   const [generationCost, setGenerationCost] = useState<GenerationCost | null>(null);
   const [progress, setProgress] = useState("");
+  const [checkingEstimate, setCheckingEstimate] = useState(false);
+  const [estimateToConfirm, setEstimateToConfirm] = useState<GenerationEstimate | null>(null);
   const running = useRef(false);
+  const checkingEstimateRef = useRef(false);
   const complete = packageIsComplete(posts, assets);
   const revisionsKey = posts.map((post) => `${post.id}:${post.revision}:${post.status}:${post.body.length}`).join("|");
   const assetsKey = assets.map((asset) => `${asset.post_id}:${asset.file_name}`).sort().join("|");
@@ -51,6 +55,26 @@ export function PackageGenerationPanel({ cycle, posts, assets, canEdit, pending,
     retry: false,
   });
   const recordCost = (cost: GenerationCost) => setGenerationCost((current) => addGenerationCost(current ?? emptyGenerationCost(), cost));
+
+  async function requestGenerationConfirmation() {
+    if (checkingEstimateRef.current || running.current || pending || dirty || complete) return;
+    checkingEstimateRef.current = true;
+    setCheckingEstimate(true);
+    onError("");
+    onNotice("");
+    try {
+      preflight();
+      const refreshed = await estimate.refetch();
+      if (refreshed.isError || !refreshed.data) throw refreshed.error ?? new Error("A estimativa não retornou dados.");
+      if (!refreshed.data.total) throw new Error("Não há uma tarifa cadastrada para todos os modelos deste pacote. A geração foi bloqueada para evitar um custo sem previsão.");
+      setEstimateToConfirm(refreshed.data);
+    } catch (cause) {
+      onError(`Não foi possível confirmar o custo, então a geração não foi iniciada. ${cause instanceof Error ? cause.message : "Tente calcular novamente."}`);
+    } finally {
+      checkingEstimateRef.current = false;
+      setCheckingEstimate(false);
+    }
+  }
 
   function preflight() {
     const blog = posts.find((post) => post.channel === "blog");
@@ -123,7 +147,7 @@ export function PackageGenerationPanel({ cycle, posts, assets, canEdit, pending,
         }
       }
 
-      let carousel = latestPosts.get("carrossel");
+      const carousel = latestPosts.get("carrossel");
       if (carousel && carousel.status !== "published") {
         let revision = carousel.revision;
         const carouselAssets = assets.filter((asset) => asset.post_id === carousel!.id);
@@ -162,14 +186,14 @@ export function PackageGenerationPanel({ cycle, posts, assets, canEdit, pending,
       <h3 id="package-generation-title">Geração completa da semana</h3>
       <p className="editorial-muted">Um clique prepara o artigo, a newsletter, o post de LinkedIn e o carrossel, com títulos, textos, tags ou hashtags definidos por cada manual e as fotos previstas. Tudo fica salvo como rascunho para revisão.</p>
     </div>
-    <Button variant="primary" className="editorial-package-generation__button" isPending={pending} isDisabled={pending || dirty || complete} onPress={() => void generatePackage()}>
-      {pending ? <span>{progress || "Gerando o pacote…"}</span> : complete ? "Conteúdo completo" : <span className="inline-flex items-center gap-2">Gerar tudo com <OpenAIMark /></span>}
+    <Button variant="primary" className="editorial-package-generation__button" isPending={pending || checkingEstimate} isDisabled={pending || checkingEstimate || dirty || complete} onPress={() => void requestGenerationConfirmation()}>
+      {pending ? <span>{progress || "Gerando o pacote…"}</span> : checkingEstimate ? "Calculando custo…" : complete ? "Conteúdo completo" : estimate.isError || Boolean(estimate.data && !estimate.data.total) ? "Recalcular custo" : <span className="inline-flex items-center gap-2">Gerar tudo com <OpenAIMark /></span>}
     </Button>
     {dirty && <p className="editorial-muted" role="status">Salve as alterações da peça aberta antes de iniciar a geração do pacote.</p>}
     <div className="editorial-package-generation__cost editorial-ai__cost" aria-live="polite" aria-atomic="true">
       {!complete && estimate.isFetching && !estimate.data && <p className="editorial-muted" role="status">Calculando o custo estimado do pacote…</p>}
-      {!complete && estimate.isError && <p className="editorial-muted">A estimativa não carregou agora. O botão continua disponível.</p>}
-      {estimate.data && !complete && <p><strong>Estimativa para o pacote: </strong>{estimate.data.total ? formatCostRange(estimate.data.total) : "tarifa não cadastrada para o modelo configurado"}{estimate.data.images?.max_count ? `, incluindo até ${estimate.data.images.max_count} fotos.` : "."}</p>}
+      {!complete && estimate.isError && <p className="editorial-muted">A estimativa não carregou. A geração só começa depois que o custo puder ser calculado.</p>}
+      {estimate.data && !complete && <p role={estimate.data.total ? undefined : "status"}><strong>Estimativa para o pacote: </strong>{estimate.data.total ? formatCostRange(estimate.data.total) : "indisponível para os modelos configurados; a geração fica bloqueada até haver uma tarifa calculável"}{estimate.data.images?.max_count ? `, incluindo até ${estimate.data.images.max_count} fotos.` : "."}</p>}
       {generationCost && generationCost.requests > 0 && <p role="status"><strong>Custo desta execução: </strong>{generationCost.unpriced_requests === generationCost.requests ? "consumo ou tarifa indisponível para calcular" : `${formatUsd(generationCost.usd)}${generationCost.unpriced_requests ? " (parcial)" : ""}`}{generationCost.unpriced_requests ? ". Há chamadas sem custo confirmado." : "."}</p>}
       {estimate.data && <details className="editorial-muted">
         <summary>Como a estimativa é calculada</summary>
@@ -180,5 +204,13 @@ export function PackageGenerationPanel({ cycle, posts, assets, canEdit, pending,
         <p><a href={PRICING_URL} target="_blank" rel="noreferrer">Preços oficiais da OpenAI</a>, conferidos em {new Date(`${estimate.data.pricing_date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}.</p>
       </details>}
     </div>
+    {estimateToConfirm?.total && <GenerationConfirmationDialog
+      isOpen
+      estimate={estimateToConfirm}
+      cost={estimateToConfirm.total}
+      description={`O pacote de ${cycle.theme} prepara os textos e as imagens que ainda faltam. Confira a previsão antes de iniciar.`}
+      onClose={() => setEstimateToConfirm(null)}
+      onConfirm={() => { setEstimateToConfirm(null); void generatePackage(); }}
+    />}
   </section>;
 }
